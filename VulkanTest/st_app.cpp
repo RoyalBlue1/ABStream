@@ -242,8 +242,8 @@ namespace st {
 		{
 			xMin = std::min(xMin,cell.xIndex);
 			yMin = std::min(yMin,cell.yIndex);
-			xMax = std::max(xMax,cell.xIndex);
-			yMax = std::max(yMax,cell.yIndex);
+			xMax = std::max(xMax,cell.xIndex + 1);
+			yMax = std::max(yMax,cell.yIndex + 1);
 		}
 		StbspExporter exporter;
 		exporter.SetCellGrid(xMin,yMin,xMax,yMax);
@@ -251,10 +251,10 @@ namespace st {
 		{
 			exporter.AddRpakMaterial(StMaterialManager::getManager().getMaterialName(i));
 		}
-		for (int x = xMin; x < xMax+4; x+=4-x%4)
+		for (int x = xMin; x < xMax; x+=4-x%4)
 		{
 			int xlimit = std::min(x+4,xMax);
-			for (int y = yMin; y < yMax+4; y+=4-y%4)
+			for (int y = yMin; y < yMax; y+=4-y%4)
 			{
 				int ylimit = std::min(y+4,yMax);
 				std::vector<std::vector<uint32_t>> histograms;
