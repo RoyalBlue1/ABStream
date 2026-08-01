@@ -28,6 +28,10 @@ namespace st {
 
 
 		uint32_t addMaterial(std::string name){
+			std::ranges::transform(name,name.begin(),::tolower);
+			std::ranges::replace(name,'\\','/');
+			if (name.starts_with("tools/"))
+				return ~0;
 			for (auto& mat : materials) {
 				if(mat.name == name)return mat.index;
 			}
@@ -46,6 +50,8 @@ namespace st {
 		}
 
 		std::string getMaterialName(uint32_t id) {
+			if (id== ~0)
+				return "UNUSED";
 			for (auto& mat: materials) {
 				if(mat.index==id)return mat.name;
 			}
