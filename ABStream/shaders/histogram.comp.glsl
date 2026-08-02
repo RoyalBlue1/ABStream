@@ -49,13 +49,13 @@ void main(){
     }
 	barrier();
 
-    if(gl_LocalInvocationIndex == 0){
+    if(gl_LocalInvocationIndex < 16){
 
 
-        int localSize = int(MAX_MATERIAL_COUNT);
+        uint localSize = uint(MAX_MATERIAL_COUNT);
         if(push.matCount < (MAX_MATERIAL_COUNT*(z_start+1)))
-        localSize = int(push.matCount%MAX_MATERIAL_COUNT);
-        for (int i = 0; i < localSize * MATERIAL_HISTOGRAM_BIN_COUNT; i++) {
+            localSize = uint(push.matCount%MAX_MATERIAL_COUNT);
+        for (uint i = gl_LocalInvocationIndex; i < localSize * MATERIAL_HISTOGRAM_BIN_COUNT; i+=16) {
             if(localHistogram[i] == 0) continue;
             atomicAdd(g_histograms[i + z_start*MAX_MATERIAL_COUNT*MATERIAL_HISTOGRAM_BIN_COUNT], localHistogram[i]);
         }
