@@ -16,7 +16,7 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-add_executable (rStream
+add_executable (abStream
     "VulkanTest.cpp"
     "st_window.cpp"
     "st_app.cpp"
@@ -37,7 +37,7 @@ add_executable (rStream
 )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET rStream PROPERTY CXX_STANDARD 20)
+  set_property(TARGET abStream PROPERTY CXX_STANDARD 20)
 endif()
 
 # TODO: Add tests and install targets if needed.
@@ -74,10 +74,10 @@ add_custom_target(VertShader DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/simple_shader.
 add_custom_target(CompShader DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/histogram.comp.spv")
 
 if(WIN32)
-    target_link_libraries(rStream PRIVATE Vulkan::Vulkan ${PROJECT_SOURCE_DIR}/lib/glfw3.lib)
+    target_link_libraries(abStream PRIVATE Vulkan::Vulkan ${PROJECT_SOURCE_DIR}/lib/glfw3.lib)
 else()
-    target_link_libraries(rStream PRIVATE Vulkan::Vulkan glm::glm glfw TBB::tbb)
+    target_link_libraries(abStream PRIVATE Vulkan::Vulkan glm::glm glfw TBB::tbb)
 endif()
-target_compile_options(rStream PRIVATE -mavx)
+target_compile_options(abStream PRIVATE -mavx)
 
-add_dependencies(rStream VertShader FragShader CompShader)
+add_dependencies(abStream VertShader FragShader CompShader)
