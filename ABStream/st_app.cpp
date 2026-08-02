@@ -136,7 +136,7 @@ namespace st {
 					float y = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 1)));
 					float z = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 2)));
 
-					//cameraController.moveInPlaneXZ(stWindow.getGLFWwindow(), frameTime, viewerObject);
+
 					static std::vector<glm::vec3> sides = {
 						{0.f,0.f,0.f},
 						{0.f,glm::radians(90.f),0.f},
@@ -199,23 +199,26 @@ namespace st {
 
 					}
 				}
+				//read histogram here
+				vkDeviceWaitIdle(stDevice.device());
+				cell.histogramData.resize(StMaterialManager::getManager().getMaterialCount()*16);
+				memset(cell.histogramData.data(),0,sizeof(uint32_t)*cell.histogramData.size());
+				for (auto& histoBuf:histogramBuffer)
+				{
+					histoBuf->map();
+					uint32_t* data = (uint32_t*)histoBuf->getMappedMemory();
+					for (int i = 0;i<StMaterialManager::getManager().getMaterialCount()*16;i++)
+					{
+						cell.histogramData[i] = std::max(cell.histogramData[i],data[i]);
+					}
+					memset(histoBuf->getMappedMemory(),0,histoBuf->getInstanceSize());
+					histoBuf->unmap();
+				}
+
+
 				if(shouldClose)break;
 			}
-			//read histogram here
-			vkDeviceWaitIdle(stDevice.device());
-			cell.histogramData.resize(StMaterialManager::getManager().getMaterialCount()*16);
-			memset(cell.histogramData.data(),0,sizeof(uint32_t)*cell.histogramData.size());
-			for (auto& histoBuf:histogramBuffer)
-			{
-				histoBuf->map();
-				uint32_t* data = (uint32_t*)histoBuf->getMappedMemory();
-				for (int i = 0;i<StMaterialManager::getManager().getMaterialCount()*16;i++)
-				{
-					cell.histogramData[i] += data[i];
-				}
-				memset(histoBuf->getMappedMemory(),0,histoBuf->getInstanceSize());
-				histoBuf->unmap();
-			}
+
 			// for (int i = 0;i<StMaterialManager::getManager().getMaterialCount();i++)
 			// {
 			//
