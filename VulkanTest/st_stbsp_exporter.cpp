@@ -189,16 +189,16 @@ namespace st
         mat.nameOffset = materialNames.AddString(name);
 		auto lowerName = name;
 		for (auto& c : lowerName) c = std::tolower(c);
-        if (lowerName.starts_with("materials/world"))
+        if (lowerName.starts_with("world/"))
         {
-            mat.rpakGuid = Hash(name+ "_wld.rpak");
+            mat.rpakGuid = Hash("material/" + name + "_wld.rpak");
         }
-        else if(lowerName.starts_with("materials/models"))
+        else if(lowerName.starts_with("models/"))
         {
-           mat.rpakGuid = Hash(name + "_skn.rpak");
+           mat.rpakGuid = Hash("material/" + name + "_skn.rpak");
         }
         else {
-            mat.rpakGuid = Hash(name + ".rpak");
+            mat.rpakGuid = Hash("material/" + name + ".rpak");
         }
         mat.vtfStart = vtfNameIndices.size();
         mat.vtfEnd = mat.vtfStart;
