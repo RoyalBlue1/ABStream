@@ -11,24 +11,14 @@
 #include "spdlog/spdlog.h"
 #include <fstream>
 #include "st_app.h"
+#include "st_settings_controller.h"
 
 
-
-
-
-
-
-
-int main(int argc, const char* argv[])
+int main(int argc, char* argv[])
 {
+    st::StSettingsManager::Initialize(argc,argv);
 
-    if (argc < 2)
-    {
-        spdlog::info("Usage: {} <filename>",argv[0]);
-        return EXIT_FAILURE;
-    }
-    fs::path fileName(argv[1]);
-    st::StApp app{fileName};
+    st::StApp app{};
     try {
         app.run();
     } catch (const std::exception &e) {

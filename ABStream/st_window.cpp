@@ -1,10 +1,11 @@
 #include "st_window.h"
 
+#include "st_settings_controller.h"
 
 
 namespace st {
 
-	StWindow::StWindow(uint32_t w, uint32_t h, std::string name) :width{ w }, height{ h }, windowName{ name } {
+	StWindow::StWindow( std::string name) :width{ StSettingsManager::getManager().cubemapResolution }, height{ StSettingsManager::getManager().cubemapResolution }, windowName{ name } {
 		initWindow();
 	}
 	StWindow::~StWindow() {
