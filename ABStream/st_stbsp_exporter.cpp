@@ -264,7 +264,8 @@ namespace st
         page.minCellY = yMin;
         page.maxCellX = xMax;
         page.maxCellY = yMax;
-        page.coverageScale = cvg / 1024.f / 1024.f;//normalize coverage against pixelcount
+        float resolution = static_cast<float>(StSettingsManager::getManager().cubemapResolution);
+        page.coverageScale = cvg / resolution / resolution;//normalize coverage against pixelcount
         page.dataOffset = pageData.Size();
         for (auto& data: materialSorts)
         {

@@ -9,7 +9,7 @@
 namespace st{
 	class StWindow {
 	public:
-		StWindow(uint32_t w,uint32_t h,std::string name);
+		StWindow(std::string name);
 		~StWindow();
 
 		StWindow(const StWindow &) = delete;

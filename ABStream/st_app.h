@@ -11,15 +11,16 @@
 #include <memory>
 #include <filesystem>
 
+#include "st_settings_controller.h"
+
 namespace fs = std::filesystem;
 
 namespace st {
 	class StApp {
 	public:
-		static constexpr int WIDTH = 1024;
-		static constexpr int HEIGHT = 1024;
+
 		void run();
-		StApp(fs::path bspFilePath);
+		StApp();
 		~StApp();
 
 		StApp(const StApp&) = delete;
@@ -29,7 +30,7 @@ namespace st {
 
 		
 
-		StWindow stWindow{WIDTH, HEIGHT, "StBspGen"};
+		StWindow stWindow{ "StBspGen"};
 		StDevice stDevice{stWindow};
 		StRenderer stRenderer{stWindow,stDevice};
 

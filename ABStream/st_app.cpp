@@ -27,7 +27,7 @@ namespace st {
 		glm::vec3 lightDirection = glm::normalize(glm::vec3{ 1.f, -3.f, -1.f });
 	};
 
-	StApp::StApp(fs::path bspFilePath)
+	StApp::StApp()
 	{
 		globalPool = StDescriptorPool::Builder(stDevice)
 			.setMaxSets(StSwapChain::MAX_FRAMES_IN_FLIGHT)
@@ -35,7 +35,7 @@ namespace st {
 			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, StSwapChain::MAX_FRAMES_IN_FLIGHT)
 			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, StSwapChain::MAX_FRAMES_IN_FLIGHT)
 			.build();
-		loadGameObjects(bspFilePath);
+		loadGameObjects(StSettingsManager::getManager().bspPath);
 
 	}
 	StApp::~StApp() {

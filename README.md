@@ -7,10 +7,19 @@ A full explanation of the system can be found in here [GDC Talk](https://gdcvaul
 ## Usage
 
 ```
-abStream <path/to/map.bsp>
+abStream [OPTIONS] <path/to/map.bsp>
 ```
 
-The tool expects the standard Titanfall 2 folder layout, with the `.bsp` passed as the argument and the game's `models/` directory reachable from it. Model paths are resolved relative to the `.bsp`'s parent folder (`<bspdir>/models/`), falling back to one level up (`<bspdir>/../models/`) if that doesn't exist — so this works:
+| Option | Description | Default |
+|---|---|---|
+| `-r, --resolution` | Resolution of the rendered cubemap | `1024` |
+| `-c, --probeCount` | Max number of probes per cell | `8` |
+| `-i, --iterations` | Number of iterations for reducing probe-options | `32` |
+| `-s, --cellSize` | Cell size | `128` |
+| `-b, --brushProbeGenerationGridSize` | How far apart probe-options are generated on brushes | `16` |
+| `-H, --probeHeight` | Height of probes above geometry | `64` |
+
+The tool expects the standard Titanfall 2 folder layout, with the `.bsp` passed as the argument and the game's `models/` directory reachable from it. Model paths are resolved relative to the `.bsp`'s parent folder (`<bspdir>/models/`), falling back to one level up (`<bspdir>/../models/`) if that doesn't exist
 
 ```
 mods/                          # mod folder
