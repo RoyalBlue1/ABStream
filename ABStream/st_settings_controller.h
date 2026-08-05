@@ -48,7 +48,7 @@ namespace st {
 			app.add_option("-i,--iterations", kmeansIterations, "Number of iterations for reducing probe-options");
 			app.add_option("-s,--cellSize", cellSize, "Cell size");
 			app.add_option("-b,--brushProbeGenerationGridSize",brushProbeGenerationGridSize,"How far apart probe-options are generated on brushes");
-			app.add_option("-h,--probeHeight",probeHeight,"Height of probes above geometry");
+			app.add_option("-H,--probeHeight",probeHeight,"Height of probes above geometry");
 			app.add_option("bspPath", bspPath, "Path to bsp file")->required()->check(CLI::ExistingFile);
 			try
 			{
