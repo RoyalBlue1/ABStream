@@ -5,10 +5,17 @@
 
 namespace st {
 
-	StWindow::StWindow( std::string name) :width{ StSettingsManager::getManager().cubemapResolution }, height{ StSettingsManager::getManager().cubemapResolution }, windowName{ name } {
-		initWindow();
+	StWindow::StWindow( std::string name) :
+	width{ StSettingsManager::getManager().cubemapResolution },
+	height{ StSettingsManager::getManager().cubemapResolution },
+	headless{ StSettingsManager::getManager().headless },
+	windowName{ name } {
+		if (!headless)
+			initWindow();
 	}
 	StWindow::~StWindow() {
+		if (StSettingsManager::getManager().headless)
+			return;
 		glfwDestroyWindow(window);
 		glfwTerminate();
 	}
@@ -17,14 +24,18 @@ namespace st {
 		
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API,GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE,GLFW_TRUE);
+		glfwWindowHint(GLFW_RESIZABLE,GLFW_FALSE);
 		window = glfwCreateWindow(width,height,windowName.c_str(), nullptr, nullptr);
 		glfwSetWindowUserPointer(window,this);
 		glfwSetFramebufferSizeCallback(window,framebufferResizeCallback);
 
-		uint32_t extensionCount = 0;
-		vkEnumerateInstanceExtensionProperties(nullptr,&extensionCount,nullptr);
-		spdlog::info("{} Extentions supported",extensionCount);
+	}
+
+	bool StWindow::shouldClose() const
+	{
+		if (StSettingsManager::getManager().headless)
+			return false;
+		return glfwWindowShouldClose(window);
 	}
 
 	void StWindow::createWindowSurface(VkInstance instance, VkSurfaceKHR* surface) {

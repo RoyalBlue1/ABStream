@@ -7,6 +7,8 @@
 #include <limits>
 #include <set>
 #include <stdexcept>
+#include "st_settings_controller.h"
+
 namespace st {
     StSwapChain::StSwapChain(StDevice &deviceRef, VkExtent2D extent)
         : device{deviceRef}, windowExtent{extent} {
@@ -21,7 +23,10 @@ namespace st {
     }
 
     void StSwapChain::init() {
-        createSwapChain();
+        if (StSettingsManager::getManager().headless)
+            createSwapChainHeadless();
+        else
+            createSwapChain();
         createImageViews();
         createRenderPass();
         createDepthResources();
@@ -66,6 +71,15 @@ namespace st {
         }
         binSwapChainImageMemory.clear();
 
+
+        if (StSettingsManager::getManager().headless) {
+            for (auto image : swapChainImages)
+                vkDestroyImage(device.device(), image, nullptr);
+            swapChainImages.clear();
+            for (auto mem : headlessImageMemory)
+                vkFreeMemory(device.device(), mem, nullptr);
+            headlessImageMemory.clear();
+        }
         //for (auto& view : texIdSwapChainImageViews) {
         //    vkDestroyImageView(device.device(),view,nullptr);
         //}
@@ -87,6 +101,11 @@ namespace st {
             &inFlightFences[currentFrame],
             VK_TRUE,
             std::numeric_limits<uint64_t>::max());
+        if (StSettingsManager::getManager().headless)
+        {
+            *imageIndex = currentFrame;
+            return VK_SUCCESS;
+        }
         VkResult result = vkAcquireNextImageKHR(
             device.device(),
             swapChain,
@@ -97,6 +116,19 @@ namespace st {
         return result;
     }
     VkResult StSwapChain::submitCommandBuffers(const VkCommandBuffer *buffers, uint32_t *imageIndex) {
+
+        if (StSettingsManager::getManager().headless) {
+            VkSubmitInfo submitInfo = {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = buffers;
+            vkResetFences(device.device(), 1, &inFlightFences[currentFrame]);
+            if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
+                throw std::runtime_error("failed to submit draw command buffer!");
+            currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+            return VK_SUCCESS;
+        }
+
         if (imagesInFlight[*imageIndex] != VK_NULL_HANDLE) {
             vkWaitForFences(device.device(), 1, &imagesInFlight[*imageIndex], VK_TRUE, UINT64_MAX);
         }
@@ -219,6 +251,70 @@ namespace st {
 
 
     }
+
+    void StSwapChain::createSwapChainHeadless() {
+        uint32_t imageCount = MAX_FRAMES_IN_FLIGHT;
+
+        swapChainImageFormat = VK_FORMAT_B8G8R8A8_SRGB;  // matches windowed path
+        swapChainExtent = windowExtent;                  // cubemapResolution x cubemapResolution
+
+        swapChainImages.resize(imageCount);
+        headlessImageMemory.resize(imageCount);
+        for (uint32_t i = 0; i < imageCount; i++) {
+            VkImageCreateInfo imageInfo{};
+            imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            imageInfo.imageType = VK_IMAGE_TYPE_2D;
+            imageInfo.extent = {swapChainExtent.width, swapChainExtent.height, 1};
+            imageInfo.mipLevels = 1;
+            imageInfo.arrayLayers = 1;
+            imageInfo.format = swapChainImageFormat;
+            imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+            imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+            imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;  // single queue headless
+            imageInfo.flags = 0;
+            device.createImageWithInfo(
+                imageInfo,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                swapChainImages[i],
+                headlessImageMemory[i]);
+        }
+
+        // bin images: R32_UINT storage attachments consumed by histogram.comp
+        binSwapChainImages.resize(imageCount);
+        binSwapChainImageMemory.resize(imageCount);
+        for (uint32_t i = 0; i < imageCount; i++) {
+            VkImageCreateInfo image{};
+            image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            image.imageType = VK_IMAGE_TYPE_2D;
+            image.format = VK_FORMAT_R32_UINT;
+            image.extent.width = swapChainExtent.width;
+            image.extent.height = swapChainExtent.height;
+            image.extent.depth = 1;
+            image.mipLevels = 1;
+            image.arrayLayers = 1;
+            image.samples = VK_SAMPLE_COUNT_1_BIT;
+            image.tiling = VK_IMAGE_TILING_OPTIMAL;
+            image.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                         VK_IMAGE_USAGE_STORAGE_BIT |
+                         VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+
+            VkMemoryAllocateInfo memAlloc{};
+            VkMemoryRequirements memReqs;
+            vkCreateImage(device.device(), &image, nullptr, &binSwapChainImages[i]);
+            vkGetImageMemoryRequirements(device.device(), binSwapChainImages[i], &memReqs);
+            memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            memAlloc.allocationSize = memReqs.size;
+            memAlloc.memoryTypeIndex =
+                device.findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            vkAllocateMemory(device.device(), &memAlloc, nullptr, &binSwapChainImageMemory[i]);
+            vkBindImageMemory(device.device(), binSwapChainImages[i], binSwapChainImageMemory[i], 0);
+        }
+
+
+    }
+
     void StSwapChain::createImageViews() {
         swapChainImageViews.resize(swapChainImages.size());
         binSwapChainImageViews.resize(binSwapChainImages.size());
@@ -295,7 +391,9 @@ namespace st {
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        colorAttachment.finalLayout = StSettingsManager::getManager().headless
+           ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+           : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         VkAttachmentDescription binAttachment{};
         binAttachment.format = VK_FORMAT_R32_UINT;
         binAttachment.samples = VK_SAMPLE_COUNT_1_BIT;

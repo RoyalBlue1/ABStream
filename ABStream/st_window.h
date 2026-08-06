@@ -15,7 +15,7 @@ namespace st{
 		StWindow(const StWindow &) = delete;
 		StWindow &operator=(const StWindow &) = delete;
 
-		bool shouldClose() const { return glfwWindowShouldClose(window); }
+		bool shouldClose() const ;
 		VkExtent2D getExtent() const { return {static_cast<uint32_t>(width),static_cast<uint32_t>(height)}; }
 		bool wasWindowResized() const {return framebufferResized;}
 		void resetWindowResizedFlag() { framebufferResized = false; }
@@ -24,6 +24,7 @@ namespace st{
 		void createWindowSurface(VkInstance instance,VkSurfaceKHR* surface);
 	private:
 
+		bool headless{false};
 
 		GLFWwindow* window;
 

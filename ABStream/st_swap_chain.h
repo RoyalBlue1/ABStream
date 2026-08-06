@@ -46,6 +46,7 @@ namespace st {
     private:
         void init();
         void createSwapChain();
+        void createSwapChainHeadless();
         void createImageViews();
         void createDepthResources();
         void createRenderPass();
@@ -62,6 +63,7 @@ namespace st {
         VkExtent2D swapChainExtent;
         std::vector<VkFramebuffer> swapChainFramebuffers;
         VkRenderPass renderPass;
+        std::vector<VkDeviceMemory> headlessImageMemory;
         std::vector<VkImage> depthImages;
         std::vector<VkDeviceMemory> depthImageMemorys;
         std::vector<VkImageView> depthImageViews;
@@ -80,7 +82,7 @@ namespace st {
         StDevice &device;
         VkExtent2D windowExtent;
 
-        VkSwapchainKHR swapChain;
+        VkSwapchainKHR swapChain = VK_NULL_HANDLE;
         std::shared_ptr<StSwapChain> oldSwapChain;
 
         std::vector<VkSemaphore> imageAvailableSemaphores;

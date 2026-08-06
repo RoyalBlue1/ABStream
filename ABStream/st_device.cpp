@@ -4,6 +4,9 @@
 #include <iostream>
 #include <set>
 #include <unordered_set>
+
+#include "st_settings_controller.h"
+
 namespace st {
     // local callback functions
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -54,7 +57,8 @@ namespace st {
         if (enableValidationLayers) {
             DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
         }
-        vkDestroySurfaceKHR(instance, surface_, nullptr);
+        if (!StSettingsManager::getManager().headless)
+            vkDestroySurfaceKHR(instance, surface_, nullptr);
         vkDestroyInstance(instance, nullptr);
     }
     void StDevice::createInstance() {
@@ -63,7 +67,7 @@ namespace st {
         }
         VkApplicationInfo appInfo = {};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "StbspGenerator";
+        appInfo.pApplicationName = "ABStream";
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "No Engine";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -130,8 +134,16 @@ namespace st {
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.pEnabledFeatures = &deviceFeatures;
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-        createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+        if (StSettingsManager::getManager().headless)
+        {
+            createInfo.enabledExtensionCount = 0;
+            createInfo.ppEnabledExtensionNames = nullptr;
+        }else
+        {
+            createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+            createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+        }
+
         // might not really be necessary anymore because device specific validation layers
         // have been deprecated
         if (enableValidationLayers) {
@@ -157,17 +169,28 @@ namespace st {
             throw std::runtime_error("failed to create command pool!");
         }
     }
-    void StDevice::createSurface() { window.createWindowSurface(instance, &surface_); }
+    void StDevice::createSurface()
+    {
+        if (StSettingsManager::getManager().headless)
+            return;
+        window.createWindowSurface(instance, &surface_);
+    }
     bool StDevice::isDeviceSuitable(VkPhysicalDevice device) {
         QueueFamilyIndices indices = findQueueFamilies(device);
+        VkPhysicalDeviceFeatures supportedFeatures;
+        vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+        if (StSettingsManager::getManager().headless)
+            return indices.isComplete() && supportedFeatures.samplerAnisotropy;
         bool extensionsSupported = checkDeviceExtensionSupport(device);
         bool swapChainAdequate = false;
         if (extensionsSupported) {
             SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+            //when headless swapChain support is
             swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
         }
-        VkPhysicalDeviceFeatures supportedFeatures;
-        vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+
+
+
         return indices.isComplete() && extensionsSupported && swapChainAdequate &&
             supportedFeatures.samplerAnisotropy;
     }
@@ -211,10 +234,15 @@ namespace st {
         return true;
     }
     std::vector<const char *> StDevice::getRequiredExtensions() {
-        uint32_t glfwExtensionCount = 0;
-        const char **glfwExtensions;
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-        std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        std::vector<const char *> extensions;
+        if (!StSettingsManager::getManager().headless)
+        {
+            uint32_t glfwExtensionCount = 0;
+            const char **glfwExtensions;
+            glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+            extensions.insert(extensions.end(),glfwExtensions, glfwExtensions + glfwExtensionCount);
+        }
+
         if (enableValidationLayers) {
             extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
@@ -261,6 +289,21 @@ namespace st {
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+        if (StSettingsManager::getManager().headless) {
+            for (uint32_t i = 0; i < queueFamilyCount; i++) {
+                if (queueFamilies[i].queueCount > 0 &&
+                    queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                    indices.graphicsFamily = i;
+                    indices.graphicsFamilyHasValue = true;
+                    indices.presentFamily = i;
+                    indices.presentFamilyHasValue = true;
+                    break;
+                    }
+            }
+            return indices;
+        }
+
         int i = 0;
         for (const auto &queueFamily : queueFamilies) {
             if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {

@@ -30,7 +30,7 @@ namespace st {
 
 		
 
-		StWindow stWindow{ "StBspGen"};
+		StWindow stWindow{ "ABStream"};
 		StDevice stDevice{stWindow};
 		StRenderer stRenderer{stWindow,stDevice};
 

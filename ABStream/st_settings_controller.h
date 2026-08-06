@@ -1,5 +1,6 @@
 #pragma once
 
+#include <immintrin.h>
 #include <filesystem>
 #include <cli11/CLI11.hpp>
 namespace fs = std::filesystem;
@@ -26,6 +27,7 @@ namespace st {
 		float brushProbeGenerationGridSize;
 		float probeHeight;
 		__m128 maxProbeZ;
+		bool headless;
 		fs::path bspPath;
 
 	private:
@@ -36,6 +38,7 @@ namespace st {
 			cellSize = 128.f;
 			brushProbeGenerationGridSize = 16.f;
 			probeHeight = 64.f;
+			headless = true;
 			maxProbeZ = _mm_set1_ps(2000.f);
 		}
 		StSettingsManager(int argc, char* argv[]):StSettingsManager()
@@ -49,6 +52,9 @@ namespace st {
 			app.add_option("-s,--cellSize", cellSize, "Cell size");
 			app.add_option("-b,--brushProbeGenerationGridSize",brushProbeGenerationGridSize,"How far apart probe-options are generated on brushes");
 			app.add_option("-H,--probeHeight",probeHeight,"Height of probes above geometry");
+			bool windowed = false;
+			app.add_flag("-w,--window",windowed,"Show window with generated images");
+			headless = !windowed;
 			app.add_option("bspPath", bspPath, "Path to bsp file")->required()->check(CLI::ExistingFile);
 			try
 			{
