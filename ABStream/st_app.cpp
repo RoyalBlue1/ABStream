@@ -18,6 +18,7 @@
 #include <glm/glm.hpp>
 
 #include "st_stbsp_exporter.h"
+#include "indicators/progress_bar.hpp"
 
 
 namespace st {
@@ -105,20 +106,40 @@ namespace st {
 		auto currentTime = std::chrono::high_resolution_clock::now();
 
 		std::vector<std::string> matNames = StMaterialManager::getManager().getMaterialNameList();
-		std::ofstream debugData("test.txt");
+
+		if (StSettingsManager::getManager().exportProbes)
+		{
+			fs::path debugPath = StSettingsManager::getManager().bspPath.replace_extension("");
+			std::string name = debugPath.filename().string() + "_probes.txt";
+
+
+
+
+			std::ofstream debugData(debugPath.replace_filename(name));
+			for (auto& cell : cells) {
+				for (auto cubeMapPos : cell.outputArray) {
+					float pos[4];
+					_mm_store_ps(pos, cubeMapPos);
+					debugData << std::format("< {}, {}, {} >,\n",
+						pos[0], pos[1], pos[2]);
+				}
+			}
+			debugData.close();
+		}
+
 		int count = 0;
 
 		for (auto& cell : cells) {
-			for (auto cubeMapPos : cell.outputArray) {
-				float pos[4];
-				_mm_store_ps(pos, cubeMapPos);
-				debugData << std::format("< {}, {}, {} >,\n",
-					pos[0], pos[1], pos[2]);
-				if(count++>32000)break;
-			}
-			if(count>32000)break;
+			count += cell.outputArray.size();
 		}
-		debugData.close();
+		indicators::ProgressBar probeBar{
+			indicators::option::BarWidth{50},
+			indicators::option::ForegroundColor{indicators::Color::white},
+			indicators::option::ShowElapsedTime{true},
+			indicators::option::ShowRemainingTime{true},
+			indicators::option::PrefixText{"Calculating Probe Cube Maps"},
+			indicators::option::MaxProgress{count}
+		};
 		bool shouldClose = false;
 		for (auto& cell : cells) {
 			if (!cell.outputArray.size())continue;
@@ -215,7 +236,7 @@ namespace st {
 					memset(histoBuf->getMappedMemory(),0,histoBuf->getInstanceSize());
 					histoBuf->unmap();
 				}
-
+				probeBar.tick();
 
 				if(shouldClose)break;
 			}
@@ -393,19 +414,21 @@ namespace st {
 			gameObjects.push_back(std::move(cube));
 
 		}
-
-		std::for_each(std::execution::par, cells.begin(), cells.end(), [&loader](Cell& cell) {
+		indicators::ProgressBar kmeansBar{
+			indicators::option::BarWidth{50},
+			indicators::option::ForegroundColor{indicators::Color::white},
+			indicators::option::ShowElapsedTime{true},
+			indicators::option::ShowRemainingTime{true},
+			indicators::option::PrefixText{"Prune Probes"},
+			indicators::option::MaxProgress{cells.size()}
+		};
+		std::for_each(std::execution::par, cells.begin(), cells.end(), [&loader,&kmeansBar](Cell& cell) {
 			testPointCollisions(loader,cell);
 			calculateCellPositions(cell);
-			if(cell.outputArray.size())
-				spdlog::info("cell {} {} computed with {} data points", cell.xIndex, cell.yIndex,cell.inputArray.size());
+			kmeansBar.tick();
 		});
 
-		size_t numCubeMaps = 0;
-		for (const auto& cell : cells) {
-			numCubeMaps += cell.outputArray.size();
-		}
-		spdlog::info("Computing {} cubemaps",numCubeMaps);
+
 	}
 
 	

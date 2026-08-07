@@ -10,6 +10,8 @@
 #include <xmmintrin.h>
 
 #include "st_settings_controller.h"
+#include "indicators/progress_bar.hpp"
+#include "indicators/dynamic_progress.hpp"
 namespace st {
 
 
@@ -177,9 +179,8 @@ namespace st {
 	}
 
 
-	void BspLoader::loadFileSingleMesh(fs::path fileName) {
-
-
+	void BspLoader::loadFileSingleMesh(fs::path fileName)
+	{
 		file.open(fileName,std::ios::binary);
 		file.seekg(0,std::ios::beg);
 		file.read((char*) & header, sizeof(header));
@@ -206,12 +207,24 @@ namespace st {
 
 		std::unordered_map<Vertex,size_t> vertBuildList;
 		Mesh loadedMesh{};
+
+		indicators::ProgressBar meshBar{
+			indicators::option::BarWidth{50},
+				indicators::option::ForegroundColor{indicators::Color::white},
+				indicators::option::ShowElapsedTime{true},
+				indicators::option::ShowRemainingTime{true},
+				indicators::option::PrefixText{"Load Bsp Meshes"},
+				indicators::option::MaxProgress{bspMeshes.size()}
+		};
+
+
+
 		for (auto& bspMesh : bspMeshes) {
 
 			//if(bspMesh.meshFlags&(int)MeshFlags::TRIGGER)continue;
 
 			//if(bspMesh.meshFlags&(int)MeshFlags::TRANSLUCENT)continue;
-			
+
 			uint32_t vertexOffset = materialSorts[bspMesh.material_sort].vertexOffset;
 			uint32_t vertexOffset2 = bspMesh.first_vertex;
 			uint32_t materialBspId = materialSorts[bspMesh.material_sort].textureData;
@@ -226,45 +239,45 @@ namespace st {
 				Vertex v;
 				switch (bspMesh.meshFlags & (int)MeshFlags::MASK_VERTEX) {
 				case (int)MeshFlags::VERTEX_LIT_FLAT:
-				{
-					auto& vert = vertex_lit_flat[vertexIndex];
-					v.position = vertices[vert.vertexIndex&0x7FFFFFFF];
-					//v.normal = normals[vert.normalIndex];
-					//v.color = { ((vert.color) & 0xFF) / 255.0,((vert.color >> 8) & 0xFF) / 255.0,((vert.color >> 16) & 0xFF) / 255.0 };
-					v.uv = vert.albedoUv;
-				}
+					{
+						auto& vert = vertex_lit_flat[vertexIndex];
+						v.position = vertices[vert.vertexIndex&0x7FFFFFFF];
+						//v.normal = normals[vert.normalIndex];
+						//v.color = { ((vert.color) & 0xFF) / 255.0,((vert.color >> 8) & 0xFF) / 255.0,((vert.color >> 16) & 0xFF) / 255.0 };
+						v.uv = vert.albedoUv;
+					}
 				break;
 				case (int)MeshFlags::VERTEX_LIT_BUMP:
-				{
-					auto& vert = vertex_lit_bump[vertexIndex];
-					v.position = vertices[vert.vertexIndex&0x7FFFFFFF];
-					//v.normal = normals[vert.normalIndex];
-					//v.color = { ((vert.color) & 0xFF) / 255.0,((vert.color >> 8) & 0xFF) / 255.0,((vert.color >> 16) & 0xFF) / 255.0 };
-					v.uv = vert.albedoUv;
-				}
+					{
+						auto& vert = vertex_lit_bump[vertexIndex];
+						v.position = vertices[vert.vertexIndex&0x7FFFFFFF];
+						//v.normal = normals[vert.normalIndex];
+						//v.color = { ((vert.color) & 0xFF) / 255.0,((vert.color >> 8) & 0xFF) / 255.0,((vert.color >> 16) & 0xFF) / 255.0 };
+						v.uv = vert.albedoUv;
+					}
 				break;
 				case (int)MeshFlags::VERTEX_UNLIT:
-				{
-					auto& vert = vertex_unlit[vertexIndex];
-					v.position = vertices[vert.vertexIndex&0x7FFFFFFF];
-					//v.normal = normals[vert.normalIndex];
-					//v.color = { ((vert.color) & 0xFF) / 255.0,((vert.color >> 8) & 0xFF) / 255.0,((vert.color >> 16) & 0xFF) / 255.0 };
-					v.uv = vert.albedoUv;
-				}
+					{
+						auto& vert = vertex_unlit[vertexIndex];
+						v.position = vertices[vert.vertexIndex&0x7FFFFFFF];
+						//v.normal = normals[vert.normalIndex];
+						//v.color = { ((vert.color) & 0xFF) / 255.0,((vert.color >> 8) & 0xFF) / 255.0,((vert.color >> 16) & 0xFF) / 255.0 };
+						v.uv = vert.albedoUv;
+					}
 				break;
 				case (int)MeshFlags::VERTEX_UNLIT_TS:
-				{
-					auto& vert = vertex_unlit_ts[vertexIndex];
-					v.position = vertices[vert.vertexIndex];
-					//v.normal = normals[vert.normalIndex];
-					//v.color = { ((vert.color) & 0xFF) / 255.0,((vert.color >> 8) & 0xFF) / 255.0,((vert.color >> 16) & 0xFF) / 255.0 };
-					v.uv = vert.albedoUv;
-				}
+					{
+						auto& vert = vertex_unlit_ts[vertexIndex];
+						v.position = vertices[vert.vertexIndex];
+						//v.normal = normals[vert.normalIndex];
+						//v.color = { ((vert.color) & 0xFF) / 255.0,((vert.color >> 8) & 0xFF) / 255.0,((vert.color >> 16) & 0xFF) / 255.0 };
+						v.uv = vert.albedoUv;
+					}
 				break;
 				}
 				std::hash<std::string> strHasher;
 				uint32_t materialHash = strHasher(materialName);
-				v.textureColor = {((materialHash) & 0xFF) / 255.0,((materialHash >> 8) & 0xFF) / 255.0,((materialHash >> 16) & 0xFF) / 255.0 }; 
+				v.textureColor = {((materialHash) & 0xFF) / 255.0,((materialHash >> 8) & 0xFF) / 255.0,((materialHash >> 16) & 0xFF) / 255.0 };
 				v.materialId = materialId;
 				size_t index;
 				if (vertBuildList.contains(v)) {
@@ -278,14 +291,15 @@ namespace st {
 
 
 			}
+			meshBar.tick();
 			//printf("mesh type %d mesh vert count %d vert offset %d\n",(mesh.meshFlags >> 9) & 3,mesh.num_vertices,vertexOffset);
 			//printf("mesh offset %d first vertex %d\n",vertexOffset,vertexOffset2);
 
 			//uint32_t off = materialSorts[mesh.material_sort].vertexOffset+offsets[(mesh.meshFlags>>9)&3];
-			
+
 
 		}
-		
+
 		size_t readPtr = 20;
 		int modelNameCount,leafCount,propCount;
 		modelNameCount = *(int*)&gameLump[readPtr];
@@ -295,18 +309,32 @@ namespace st {
 		{
 			modelBase = modelBase.parent_path();
 		}
+		indicators::ProgressBar mdlBar{
+			indicators::option::BarWidth{50},
+			indicators::option::ForegroundColor{indicators::Color::white},
+			indicators::option::ShowElapsedTime{true},
+			indicators::option::ShowRemainingTime{true},
+			indicators::option::PrefixText{"Load Models"},
+			indicators::option::MaxProgress{modelNameCount}
+		};
+
 		for (int i = 0; i < modelNameCount; i++) {
 			char mdlName[129];
 			strncpy(mdlName,&gameLump[readPtr],128);
 			mdlName[128] = 0;
 			readPtr+=128;
-			mdls.emplace_back(modelBase/mdlName);
+			std::string mdlNameStr{mdlName};
+			std::ranges::transform(mdlNameStr.begin(), mdlNameStr.end(), mdlNameStr.begin(), tolower);
+			mdls.emplace_back(modelBase/mdlNameStr);
+			mdlBar.tick();
 		}
 		//skip leafData
 		//leafCount = *(int*)&gameLump[readPtr];
 		readPtr += 8;
 		propCount = *(int*)&gameLump[readPtr];
 		readPtr+=4;
+
+
 		for (int i = 0; i < propCount; i++) {
 
 	
@@ -314,13 +342,26 @@ namespace st {
 			memcpy(&prop, &gameLump[readPtr], sizeof(prop));
 			readPtr += sizeof(prop);
 			props.push_back(prop);
+
 		}
+
+		indicators::ProgressBar propBar{
+			indicators::option::BarWidth{50},
+			indicators::option::ForegroundColor{indicators::Color::white},
+			indicators::option::ShowElapsedTime{true},
+			indicators::option::ShowRemainingTime{true},
+			indicators::option::PrefixText{"Load Props"},
+			indicators::option::MaxProgress{props.size()}
+		};
+
+
 		for(auto& prop:props){
 			//Transform3dComponent transform;
 			//transform.scale = glm::vec3(prop.scale);
 			//transform.translation = prop.m_Origin;
 			//transform.rotation= glm::vec3{glm::pi<float>() *prop.m_Angles.x /180.0f,glm::pi<float>() *prop.m_Angles.z /180.0f,glm::pi<float>() *prop.m_Angles.y /180.0f};
 			//glm::mat4x4 mat = transform.mat4();
+			propBar.tick();
 			glm::mat4 mat = createTransformationMatrix_Source(prop.m_Angles,prop.m_Origin,prop.scale);
 			//AngleMatrix(prop.m_Angles,prop.m_Origin,prop.scale);
 
@@ -336,7 +377,7 @@ namespace st {
 
 		loadedMesh.finishMesh();
 		
-		spdlog::info("vertCount {} triCount {}",loadedMesh.verts.size(),loadedMesh.indices.size()/3);
+		//spdlog::info("vertCount {} triCount {}",loadedMesh.verts.size(),loadedMesh.indices.size()/3);
 		meshes.push_back(loadedMesh);
 		file.close();
 	}

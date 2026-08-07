@@ -28,6 +28,7 @@ namespace st {
 		float probeHeight;
 		__m128 maxProbeZ;
 		bool headless;
+		bool exportProbes;
 		fs::path bspPath;
 
 	private:
@@ -39,6 +40,7 @@ namespace st {
 			brushProbeGenerationGridSize = 16.f;
 			probeHeight = 64.f;
 			headless = true;
+			exportProbes = false;
 			maxProbeZ = _mm_set1_ps(2000.f);
 		}
 		StSettingsManager(int argc, char* argv[]):StSettingsManager()
@@ -54,6 +56,7 @@ namespace st {
 			app.add_option("-H,--probeHeight",probeHeight,"Height of probes above geometry");
 			bool windowed = false;
 			app.add_flag("-w,--window",windowed,"Show window with generated images");
+			app.add_flag("-e,--exportProbes",exportProbes,"Store generated probes to file");
 			headless = !windowed;
 			app.add_option("bspPath", bspPath, "Path to bsp file")->required()->check(CLI::ExistingFile);
 			try

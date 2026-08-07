@@ -80,14 +80,15 @@ namespace st {
         createInfo.ppEnabledExtensionNames = extensions.data();
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
         if (enableValidationLayers) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-            createInfo.ppEnabledLayerNames = validationLayers.data();
             populateDebugMessengerCreateInfo(debugCreateInfo);
             createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
-        } else {
-            createInfo.enabledLayerCount = 0;
+        }else
+        {
             createInfo.pNext = nullptr;
         }
+        createInfo.enabledLayerCount = 0;
+
+
         if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
             throw std::runtime_error("failed to create instance!");
         }
@@ -253,20 +254,7 @@ namespace st {
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
         std::vector<VkExtensionProperties> extensions(extensionCount);
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-        std::cout << "available extensions:" << std::endl;
-        std::unordered_set<std::string> available;
-        for (const auto &extension : extensions) {
-            std::cout << "\t" << extension.extensionName << std::endl;
-            available.insert(extension.extensionName);
-        }
-        std::cout << "required extensions:" << std::endl;
-        auto requiredExtensions = getRequiredExtensions();
-        for (const auto &required : requiredExtensions) {
-            std::cout << "\t" << required << std::endl;
-            if (available.find(required) == available.end()) {
-                throw std::runtime_error("Missing required glfw extension");
-            }
-        }
+
     }
     bool StDevice::checkDeviceExtensionSupport(VkPhysicalDevice device) {
         uint32_t extensionCount;
