@@ -82,11 +82,15 @@ namespace st {
         if (enableValidationLayers) {
             populateDebugMessengerCreateInfo(debugCreateInfo);
             createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
+            createInfo.ppEnabledLayerNames =validationLayers.data();
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         }else
         {
             createInfo.pNext = nullptr;
+            createInfo.ppEnabledLayerNames = VK_NULL_HANDLE;
+            createInfo.enabledLayerCount = 0;
         }
-        createInfo.enabledLayerCount = 0;
+
 
 
         if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {

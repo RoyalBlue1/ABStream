@@ -63,7 +63,7 @@ namespace st {
 				StMaterialManager::getManager().getMaterialCount() * 16 * sizeof(uint32_t),
 				1,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 			histogramBuffer[i]->map();
 			memset(histogramBuffer[i]->getMappedMemory(),0,histogramBuffer[i]->getInstanceSize());
 			histogramBuffer[i]->unmap();
@@ -142,10 +142,10 @@ namespace st {
 		};
 		bool shouldClose = false;
 		for (auto& cell : cells) {
-			if (!cell.outputArray.size())continue;
+			if (cell.outputArray.empty())continue;
 			for (auto cubeMapPos : cell.outputArray) {
 				for (int sideIndex = 0; sideIndex < 6; sideIndex++) {
-					bool shouldClose = stWindow.shouldClose();
+					shouldClose = stWindow.shouldClose();
 					if(shouldClose)break;
 					if (!StSettingsManager::getManager().headless)
 						glfwPollEvents();
@@ -176,7 +176,7 @@ namespace st {
 
 					if (auto commandBuffer = stRenderer.beginFrame()) {
 
-						int frameIndex = stRenderer.getFrameIndex();
+						uint32_t frameIndex = stRenderer.getFrameIndex();
 						FrameInfo frameInfo{ frameIndex, frameTime, commandBuffer, camera,globalDescriptorSets[frameIndex] };
 
 						// update
@@ -276,10 +276,10 @@ namespace st {
 		{
 			exporter.AddRpakMaterial(StMaterialManager::getManager().getMaterialName(i));
 		}
-		for (int x = xMin; x < xMax; x+=4-x%4)
+		for (int x = xMin; x < xMax; x+=4)
 		{
 			int xlimit = std::min(x+4,xMax);
-			for (int y = yMin; y < yMax; y+=4-y%4)
+			for (int y = yMin; y < yMax; y+=4)
 			{
 				int ylimit = std::min(y+4,yMax);
 				std::vector<std::vector<uint32_t>> histograms;
@@ -309,7 +309,7 @@ namespace st {
 	void calculateCellPositions(Cell& cell) {
 		size_t nodeCount = StSettingsManager::getManager().kmeansNodeCount;
 		const std::vector<__m128>& input = cell.inputArray;
-		if (input.size() == 0)return;
+		if (input.empty())return;
 		if (input.size() <= nodeCount) {
 			cell.outputArray = input;
 			return;
@@ -330,14 +330,14 @@ namespace st {
 				do {
 					int index = rand()%input.size();
 					n = input[index];
-					bool dublicate = false;
+					bool duplicate = false;
 					for (const auto& a : nodes) {
 						if (_mm_movemask_ps(_mm_cmpeq_ps(a, n)) == 0xF) {
-							dublicate = true;
+							duplicate = true;
 							break;
 						}
 					}
-					if(!dublicate)break;
+					if(!duplicate)break;
 				} while(true);
 				nodes.push_back(n);
 			}
@@ -381,6 +381,7 @@ namespace st {
 			}
 			if (_mm_movemask_ps(_mm_cmplt_ps(averageDistance, bestDistance))) {
 				bestCaseNodes = nodes;
+				bestDistance = averageDistance;
 			}
 			nodes.clear();
 		}
