@@ -108,9 +108,6 @@ namespace st {
 				}
 					break;
 				}
-				std::hash<std::string> strHasher;
-				uint32_t materialHash = strHasher(materialName);
-				v.textureColor = {((materialHash) & 0xFF) / 255.0,((materialHash >> 8) & 0xFF) / 255.0,((materialHash >> 16) & 0xFF) / 255.0 }; 
 				v.materialId = material;
 				size_t index;
 				if (vertBuildList.contains(v)) {
@@ -275,9 +272,6 @@ namespace st {
 					}
 				break;
 				}
-				std::hash<std::string> strHasher;
-				uint32_t materialHash = strHasher(materialName);
-				v.textureColor = {((materialHash) & 0xFF) / 255.0,((materialHash >> 8) & 0xFF) / 255.0,((materialHash >> 16) & 0xFF) / 255.0 };
 				v.materialId = materialId;
 				size_t index;
 				if (vertBuildList.contains(v)) {
@@ -404,8 +398,6 @@ namespace st {
 				planes.push_back(brushPlanes[planeIndex]);
 			}
 			float brushGridSize = StSettingsManager::getManager().brushProbeGenerationGridSize;
-			if(brush.origin.x<-2300&&brush.origin.x>-2400&&brush.origin.y<3200&&brush.origin.y>-3350)
-				printf("found");
 			for (float x = brush.origin.x - brush.extends.x; x < brush.origin.x + brush.extends.x; x += brushGridSize ) {
 				for (float y = brush.origin.y - brush.extends.y; y < brush.origin.y + brush.extends.y; y += brushGridSize ) {
 

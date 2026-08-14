@@ -18,9 +18,7 @@ namespace st {
         StSwapChain& operator=(const StSwapChain &) = delete;
         VkFramebuffer getFrameBuffer(int index) { return swapChainFramebuffers[index]; }
         VkRenderPass getRenderPass() { return renderPass; }
-        VkImageView getImageView(int index) { return swapChainImageViews[index]; }
-        size_t imageCount() { return swapChainImages.size(); }
-        VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
+        size_t imageCount() { return binSwapChainImages.size(); }
         VkExtent2D getSwapChainExtent() { return swapChainExtent; }
         uint32_t width() { return swapChainExtent.width; }
         uint32_t height() { return swapChainExtent.height; }
@@ -30,19 +28,14 @@ namespace st {
         VkFormat findDepthFormat();
         VkResult acquireNextImage(uint32_t *imageIndex);
         VkResult submitCommandBuffers(const VkCommandBuffer *buffers, uint32_t *imageIndex);
-        bool compareSwapFormats(const StSwapChain& swapChain)const {
-            return swapChain.swapChainDepthFormat == swapChainDepthFormat &&
-                   swapChain.swapChainImageFormat == swapChainImageFormat;
-        }
+
         VkDescriptorImageInfo* binDescriptorInfo(int index) {
             return &binBindDescriptorInfo[index];
         }
         VkImage getBinImage(int index) {
             return binSwapChainImages[index];
         }
-        VkImageView getBinComputeView(int index) {
-            return binComputeImageViews[index];
-        }
+
     private:
         void init();
         void createSwapChain();
@@ -52,26 +45,16 @@ namespace st {
         void createRenderPass();
         void createFramebuffers();
         void createSyncObjects();
-        // Helper functions
-        VkSurfaceFormatKHR chooseSwapSurfaceFormat(
-            const std::vector<VkSurfaceFormatKHR> &availableFormats);
-        VkPresentModeKHR chooseSwapPresentMode(
-            const std::vector<VkPresentModeKHR> &availablePresentModes);
-        VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
-        VkFormat swapChainImageFormat;
+
         VkFormat swapChainDepthFormat;
         VkExtent2D swapChainExtent;
         std::vector<VkFramebuffer> swapChainFramebuffers;
         VkRenderPass renderPass;
-        std::vector<VkDeviceMemory> headlessImageMemory;
         std::vector<VkImage> depthImages;
         std::vector<VkDeviceMemory> depthImageMemorys;
         std::vector<VkImageView> depthImageViews;
-        std::vector<VkImage> swapChainImages;
-        std::vector<VkImageView> swapChainImageViews;
         std::vector<VkImage> binSwapChainImages;
         std::vector<VkImageView> binSwapChainImageViews;
-        std::vector<VkImageView> binComputeImageViews;
         std::vector<VkDeviceMemory> binSwapChainImageMemory;
         VkSampler binSampler;
         std::vector<VkDescriptorImageInfo> binBindDescriptorInfo;
@@ -84,9 +67,6 @@ namespace st {
 
         VkSwapchainKHR swapChain = VK_NULL_HANDLE;
         std::shared_ptr<StSwapChain> oldSwapChain;
-
-        std::vector<VkSemaphore> imageAvailableSemaphores;
-        std::vector<VkSemaphore> renderFinishedSemaphores;
         std::vector<VkFence> inFlightFences;
         std::vector<VkFence> imagesInFlight;
         size_t currentFrame = 0;

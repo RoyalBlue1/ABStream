@@ -13,7 +13,7 @@ namespace st {
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
 		VkPipelineRasterizationStateCreateInfo rasterizationInfo{};
 		VkPipelineMultisampleStateCreateInfo multisampleInfo{};
-		VkPipelineColorBlendAttachmentState colorBlendAttachment[3];
+		VkPipelineColorBlendAttachmentState colorBlendAttachment[1];
 		VkPipelineColorBlendStateCreateInfo colorBlendInfo{};
 		VkPipelineDepthStencilStateCreateInfo depthStencilInfo{};
 		std::vector<VkDynamicState> dynamicStateEnables{};

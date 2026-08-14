@@ -2,7 +2,7 @@
 
 #include "st_device.h"
 #include "st_swap_chain.h"
-#include "st_window.h"
+
 
 
 
@@ -11,7 +11,7 @@ namespace st {
 	public:
 
 
-		StRenderer(StWindow& window,StDevice& device);
+		StRenderer(StDevice& device);
 		~StRenderer();
 
 		StRenderer(const StRenderer&) = delete;
@@ -120,8 +120,7 @@ namespace st {
 		void createCommandBuffers();
 		void freeCommandBuffers();
 		void recreateSwapChain();
-
-		StWindow& stWindow;
+		
 		StDevice& stDevice;
 		std::unique_ptr<StSwapChain> stSwapChain;
 		std::vector<VkCommandBuffer> commandBuffers;

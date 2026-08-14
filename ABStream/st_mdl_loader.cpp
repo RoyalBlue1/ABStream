@@ -222,9 +222,6 @@ namespace st {
 								v.position = vvdVert.m_vecPosition;
 								v.uv = vvdVert.m_vecTexCoord;
 								v.materialId = StMaterialManager::getManager().addMaterial(textureNames[mdlMesh.material]);
-								std::hash<std::string> strHasher;
-								uint32_t materialHash = strHasher(textureNames[mdlMesh.material]);
-								v.textureColor = { ((materialHash) & 0xFF) / 255.0,((materialHash >> 8) & 0xFF) / 255.0,((materialHash >> 16) & 0xFF) / 255.0 };
 								mesh.addVert(v);
 							}
 						}

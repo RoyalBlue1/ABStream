@@ -7,7 +7,6 @@
 find_package(Vulkan REQUIRED)
 if(NOT WIN32)
     find_package(glm REQUIRED)
-    find_package(glfw3 REQUIRED)
     find_package(TBB REQUIRED)
 endif()
 # Add source to this project's executable.
@@ -18,7 +17,6 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_executable (abStream
     "VulkanTest.cpp"
-    "st_window.cpp"
     "st_app.cpp"
     "st_pipeline.cpp"
     "st_device.cpp"
@@ -27,7 +25,6 @@ add_executable (abStream
     "st_renderer.cpp"
     "simple_render_system.cpp"
     "st_camera.cpp"
-    "keyboard_movement_controller.cpp"
     "st_bsp_loader.cpp"
     "st_game_object.cpp"
     "st_mdl_loader.cpp"
@@ -40,10 +37,6 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET abStream PROPERTY CXX_STANDARD 20)
 endif()
 
-# TODO: Add tests and install targets if needed.
-
-
-set(GLSLC_PATH )
 
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/simple_shader.vert.spv"
@@ -74,9 +67,9 @@ add_custom_target(VertShader DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/simple_shader.
 add_custom_target(CompShader DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/histogram.comp.spv")
 
 if(WIN32)
-    target_link_libraries(abStream PRIVATE Vulkan::Vulkan ${PROJECT_SOURCE_DIR}/lib/glfw3.lib)
+    target_link_libraries(abStream PRIVATE Vulkan::Vulkan)
 else()
-    target_link_libraries(abStream PRIVATE Vulkan::Vulkan glm::glm glfw TBB::tbb)
+    target_link_libraries(abStream PRIVATE Vulkan::Vulkan glm::glm  TBB::tbb)
 endif()
 target_compile_options(abStream PRIVATE -mavx)
 

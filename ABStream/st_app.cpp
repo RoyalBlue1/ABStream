@@ -1,6 +1,6 @@
 #include "st_app.h"
 #include "simple_render_system.h"
-#include "keyboard_movement_controller.h"
+
 #include "st_camera.h"
 #include "st_material_management.h"
 #include "st_buffer.h"
@@ -140,18 +140,12 @@ namespace st {
 			indicators::option::PrefixText{"Calculating Probe Cube Maps"},
 			indicators::option::MaxProgress{count}
 		};
-		bool shouldClose = false;
+
 		for (auto& cell : cells) {
 			if (cell.outputArray.empty())continue;
 			for (auto cubeMapPos : cell.outputArray) {
 				for (int sideIndex = 0; sideIndex < 6; sideIndex++) {
-					shouldClose = stWindow.shouldClose();
-					if(shouldClose)break;
-					if (!StSettingsManager::getManager().headless)
-						glfwPollEvents();
-					auto newTime = std::chrono::high_resolution_clock::now();
-					float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
-					currentTime = newTime;
+
 
 
 					float x = _mm_cvtss_f32(cubeMapPos);
@@ -177,7 +171,7 @@ namespace st {
 					if (auto commandBuffer = stRenderer.beginFrame()) {
 
 						uint32_t frameIndex = stRenderer.getFrameIndex();
-						FrameInfo frameInfo{ frameIndex, frameTime, commandBuffer, camera,globalDescriptorSets[frameIndex] };
+						FrameInfo frameInfo{ frameIndex, commandBuffer, camera,globalDescriptorSets[frameIndex] };
 
 						// update
 						// GlobalUbo ubo{};
@@ -214,7 +208,7 @@ namespace st {
 
 						stRenderer.endSwapChainRenderpass(commandBuffer);
 						stRenderer.binImageComputeStartBarrier(commandBuffer);
-						simpleRender.computeHistogram(commandBuffer,stWindow.getExtent().width,stWindow.getExtent().height,StMaterialManager::getManager().getMaterialCount(), &globalDescriptorSets[frameIndex]);
+						simpleRender.computeHistogram(commandBuffer, &globalDescriptorSets[frameIndex]);
 						stRenderer.binImageComputeEndBarrier(commandBuffer);
 
 						stRenderer.endFrame();
@@ -238,7 +232,6 @@ namespace st {
 				}
 				probeBar.tick();
 
-				if(shouldClose)break;
 			}
 
 			// for (int i = 0;i<StMaterialManager::getManager().getMaterialCount();i++)
@@ -254,10 +247,9 @@ namespace st {
 			// 		counts[12],counts[13],counts[14],counts[15]);
 			// }
 
-			if(shouldClose)break;
 		}
 		vkDeviceWaitIdle(stDevice.device());
-		if (shouldClose)return;
+
 
 		int xMin = std::numeric_limits<int>::max();
 		int yMin = std::numeric_limits<int>::max();

@@ -6,6 +6,8 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
+#include "st_settings_controller.h"
+
 namespace st {
 
 	struct SimplePushConstantData {
@@ -115,7 +117,7 @@ namespace st {
 
 		
 	}
-	void SimpleRenderSystem::computeHistogram(VkCommandBuffer& commandBuffer,uint32_t windowX, uint32_t windowY,uint32_t numTextures,VkDescriptorSet* descriptorSet) {
+	void SimpleRenderSystem::computeHistogram(VkCommandBuffer& commandBuffer,VkDescriptorSet* descriptorSet) {
 		stPipeline->bindCompute(commandBuffer);
 		vkCmdBindDescriptorSets(
 			commandBuffer,
@@ -127,7 +129,9 @@ namespace st {
 			0,
 			nullptr
 		);
-		vkCmdDispatch(commandBuffer,windowX/16,windowY/16,(numTextures+511)/512);
+		uint32_t res = StSettingsManager::getManager().cubemapResolution;
+		uint32_t numTextures = StMaterialManager::getManager().getMaterialCount();
+		vkCmdDispatch(commandBuffer,res/16,res/16,(numTextures+511)/512);
 	}
 	
 }

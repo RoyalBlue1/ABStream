@@ -43,10 +43,10 @@ namespace st {
         }
     }
     // class member functions
-    StDevice::StDevice(StWindow &window) : window{window} {
+    StDevice::StDevice()  {
         createInstance();
         setupDebugMessenger();
-        createSurface();
+
         pickPhysicalDevice();
         createLogicalDevice();
         createCommandPool();
@@ -57,8 +57,6 @@ namespace st {
         if (enableValidationLayers) {
             DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
         }
-        if (!StSettingsManager::getManager().headless)
-            vkDestroySurfaceKHR(instance, surface_, nullptr);
         vkDestroyInstance(instance, nullptr);
     }
     void StDevice::createInstance() {
@@ -91,12 +89,10 @@ namespace st {
             createInfo.enabledLayerCount = 0;
         }
 
-
-
         if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
             throw std::runtime_error("failed to create instance!");
         }
-        hasGflwRequiredInstanceExtensions();
+
     }
     void StDevice::pickPhysicalDevice() {
         uint32_t deviceCount = 0;
@@ -139,15 +135,10 @@ namespace st {
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.pEnabledFeatures = &deviceFeatures;
-        if (StSettingsManager::getManager().headless)
-        {
-            createInfo.enabledExtensionCount = 0;
-            createInfo.ppEnabledExtensionNames = VK_NULL_HANDLE;
-        }else
-        {
-            createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-            createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-        }
+
+        createInfo.enabledExtensionCount = 0;
+        createInfo.ppEnabledExtensionNames = VK_NULL_HANDLE;
+
 
 
         createInfo.enabledLayerCount = 0;
@@ -156,7 +147,6 @@ namespace st {
             throw std::runtime_error("failed to create logical device!");
         }
         vkGetDeviceQueue(device_, indices.graphicsFamily, 0, &graphicsQueue_);
-        vkGetDeviceQueue(device_, indices.presentFamily, 0, &presentQueue_);
     }
     void StDevice::createCommandPool() {
         QueueFamilyIndices queueFamilyIndices = findPhysicalQueueFamilies();
@@ -169,31 +159,15 @@ namespace st {
             throw std::runtime_error("failed to create command pool!");
         }
     }
-    void StDevice::createSurface()
-    {
-        if (StSettingsManager::getManager().headless)
-            return;
-        window.createWindowSurface(instance, &surface_);
-    }
+
     bool StDevice::isDeviceSuitable(VkPhysicalDevice device) {
         QueueFamilyIndices indices = findQueueFamilies(device);
         VkPhysicalDeviceFeatures supportedFeatures;
         vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
-        if (StSettingsManager::getManager().headless)
-            return indices.isComplete() && supportedFeatures.samplerAnisotropy;
-        bool extensionsSupported = checkDeviceExtensionSupport(device);
-        bool swapChainAdequate = false;
-        if (extensionsSupported) {
-            SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
-            //when headless swapChain support is
-            swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
-        }
-
-
-
-        return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-            supportedFeatures.samplerAnisotropy;
+        return indices.isComplete() && supportedFeatures.samplerAnisotropy;
     }
+
+
     void StDevice::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
         createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -235,26 +209,13 @@ namespace st {
     }
     std::vector<const char *> StDevice::getRequiredExtensions() {
         std::vector<const char *> extensions;
-        if (!StSettingsManager::getManager().headless)
-        {
-            uint32_t glfwExtensionCount = 0;
-            const char **glfwExtensions;
-            glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-            extensions.insert(extensions.end(),glfwExtensions, glfwExtensions + glfwExtensionCount);
-        }
 
         if (enableValidationLayers) {
             extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
         return extensions;
     }
-    void StDevice::hasGflwRequiredInstanceExtensions() {
-        uint32_t extensionCount = 0;
-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-        std::vector<VkExtensionProperties> extensions(extensionCount);
-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
-    }
     bool StDevice::checkDeviceExtensionSupport(VkPhysicalDevice device) {
         uint32_t extensionCount;
         vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
@@ -277,60 +238,21 @@ namespace st {
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-        if (StSettingsManager::getManager().headless) {
-            for (uint32_t i = 0; i < queueFamilyCount; i++) {
-                if (queueFamilies[i].queueCount > 0 &&
-                    queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                    indices.graphicsFamily = i;
-                    indices.graphicsFamilyHasValue = true;
-                    indices.presentFamily = i;
-                    indices.presentFamilyHasValue = true;
-                    break;
-                    }
-            }
-            return indices;
-        }
 
-        int i = 0;
-        for (const auto &queueFamily : queueFamilies) {
-            if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+        for (uint32_t i = 0; i < queueFamilyCount; i++) {
+            if (queueFamilies[i].queueCount > 0 &&
+                queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                 indices.graphicsFamily = i;
                 indices.graphicsFamilyHasValue = true;
-            }
-            VkBool32 presentSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface_, &presentSupport);
-            if (queueFamily.queueCount > 0 && presentSupport) {
                 indices.presentFamily = i;
                 indices.presentFamilyHasValue = true;
-            }
-            if (indices.isComplete()) {
                 break;
-            }
-            i++;
+                }
         }
         return indices;
+
     }
-    SwapChainSupportDetails StDevice::querySwapChainSupport(VkPhysicalDevice device) {
-        SwapChainSupportDetails details;
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface_, &details.capabilities);
-        uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface_, &formatCount, nullptr);
-        if (formatCount != 0) {
-            details.formats.resize(formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface_, &formatCount, details.formats.data());
-        }
-        uint32_t presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface_, &presentModeCount, nullptr);
-        if (presentModeCount != 0) {
-            details.presentModes.resize(presentModeCount);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(
-                device,
-                surface_,
-                &presentModeCount,
-                details.presentModes.data());
-        }
-        return details;
-    }
+
     VkFormat StDevice::findSupportedFormat(
         const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
         for (VkFormat format : candidates) {
