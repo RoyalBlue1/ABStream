@@ -30,8 +30,8 @@ const uint MAX_MATERIAL_COUNT = 512u;
 shared uint[MAX_MATERIAL_COUNT*MATERIAL_HISTOGRAM_BIN_COUNT] localHistogram;
 
 void main(){
-	
-	for (uint i = gl_LocalInvocationIndex; i < push.matCount * MATERIAL_HISTOGRAM_BIN_COUNT; i += gl_WorkGroupSize.x * gl_WorkGroupSize.y) {
+
+	for (uint i = gl_LocalInvocationIndex; i < MAX_MATERIAL_COUNT * MATERIAL_HISTOGRAM_BIN_COUNT; i += gl_WorkGroupSize.x * gl_WorkGroupSize.y) {
         localHistogram[i] = 0u;
     }
 	barrier();
@@ -44,21 +44,23 @@ void main(){
     uint bin_value = imageLoad(bin,ivec2(x,y)).r;
     if(bin_value<(MAX_MATERIAL_COUNT*(z_start+1)*MATERIAL_HISTOGRAM_BIN_COUNT)){
         if(bin_value>(MAX_MATERIAL_COUNT*z_start*MATERIAL_HISTOGRAM_BIN_COUNT)){
-            atomicAdd(localHistogram[bin_value-(MAX_MATERIAL_COUNT*z_start*MATERIAL_HISTOGRAM_BIN_COUNT)],1u);
+            if(bin_value<push.matCount*MATERIAL_HISTOGRAM_BIN_COUNT){
+                atomicAdd(localHistogram[bin_value - (MAX_MATERIAL_COUNT * z_start * MATERIAL_HISTOGRAM_BIN_COUNT)], 1u);
+            }
         }
     }
 	barrier();
 
-    if(gl_LocalInvocationIndex < 16){
 
 
-        uint localSize = uint(MAX_MATERIAL_COUNT);
-        if(push.matCount < (MAX_MATERIAL_COUNT*(z_start+1)))
-            localSize = uint(push.matCount%MAX_MATERIAL_COUNT);
-        for (uint i = gl_LocalInvocationIndex; i < localSize * MATERIAL_HISTOGRAM_BIN_COUNT; i+=16) {
-            if(localHistogram[i] == 0) continue;
-            atomicAdd(g_histograms[i + z_start*MAX_MATERIAL_COUNT*MATERIAL_HISTOGRAM_BIN_COUNT], localHistogram[i]);
-        }
+
+    uint localSize = uint(MAX_MATERIAL_COUNT);
+    if(push.matCount < (MAX_MATERIAL_COUNT*(z_start+1)))
+        localSize = uint(push.matCount%MAX_MATERIAL_COUNT);
+    for (uint i = gl_LocalInvocationIndex; i < localSize * MATERIAL_HISTOGRAM_BIN_COUNT; i += gl_WorkGroupSize.x * gl_WorkGroupSize.y) {
+        if(localHistogram[i] == 0) continue;
+        atomicAdd(g_histograms[i + z_start*MAX_MATERIAL_COUNT*MATERIAL_HISTOGRAM_BIN_COUNT], localHistogram[i]);
     }
+
 
 }

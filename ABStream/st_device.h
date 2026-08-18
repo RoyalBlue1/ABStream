@@ -1,8 +1,10 @@
 #pragma once
-#include "st_window.h"
+
 // std lib headers
+#include <vulkan/vulkan.h>
 #include <string>
 #include <vector>
+#include <cassert>
 namespace st {
     struct SwapChainSupportDetails {
         VkSurfaceCapabilitiesKHR capabilities;
@@ -23,7 +25,7 @@ namespace st {
 #else
         const bool enableValidationLayers = true;
 #endif
-        StDevice(StWindow &window);
+        StDevice();
         ~StDevice();
         // Not copyable or movable
         StDevice(const StDevice &) = delete;
@@ -32,10 +34,7 @@ namespace st {
         StDevice &operator=(StDevice &&) = delete;
         VkCommandPool getCommandPool() { return commandPool; }
         VkDevice device() { return device_; }
-        VkSurfaceKHR surface() { return surface_; }
         VkQueue graphicsQueue() { return graphicsQueue_; }
-        VkQueue presentQueue() { return presentQueue_; }
-        SwapChainSupportDetails getSwapChainSupport() { return querySwapChainSupport(physicalDevice); }
         uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
         QueueFamilyIndices findPhysicalQueueFamilies() { return findQueueFamilies(physicalDevice); }
         VkFormat findSupportedFormat(
@@ -61,7 +60,6 @@ namespace st {
     private:
         void createInstance();
         void setupDebugMessenger();
-        void createSurface();
         void pickPhysicalDevice();
         void createLogicalDevice();
         void createCommandPool();
@@ -71,19 +69,16 @@ namespace st {
         bool checkValidationLayerSupport();
         QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
-        void hasGflwRequiredInstanceExtensions();
+
         bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-        SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+
         VkInstance instance;
         VkDebugUtilsMessengerEXT debugMessenger;
         VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-        StWindow &window;
         VkCommandPool commandPool;
         VkDevice device_;
-        VkSurfaceKHR surface_;
         VkQueue graphicsQueue_;
-        VkQueue presentQueue_;
         const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-        const std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+        const std::vector<const char *> deviceExtensions = {};
     };
 }  // namespace lve

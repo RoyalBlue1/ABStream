@@ -2,7 +2,7 @@
 
 #include "st_device.h"
 #include "st_swap_chain.h"
-#include "st_window.h"
+
 
 
 
@@ -11,7 +11,7 @@ namespace st {
 	public:
 
 
-		StRenderer(StWindow& window,StDevice& device);
+		StRenderer(StDevice& device);
 		~StRenderer();
 
 		StRenderer(const StRenderer&) = delete;
@@ -37,8 +37,9 @@ namespace st {
 			return stSwapChain->extentAspectRatio();
 		}
 		VkCommandBuffer beginFrame();
+		void waitForFrame(int frameIndex);
 		void endFrame();
-		void beginSwapChainRenderpass(VkCommandBuffer commandBuffer);
+		void beginSwapChainRenderpass(VkCommandBuffer commandBuffer,int face);
 		void endSwapChainRenderpass(VkCommandBuffer commandBuffer);
 		VkDescriptorImageInfo* binDescriptorInfo(int index) {
 			return stSwapChain->binDescriptorInfo(index);
@@ -51,7 +52,7 @@ namespace st {
 				.baseMipLevel = 0,
 				.levelCount = 1,
 				.baseArrayLayer = 0,
-				.layerCount = 1
+				.layerCount = 6
 			};
 
 			VkImageMemoryBarrier barrier = {
@@ -86,7 +87,7 @@ namespace st {
 				.baseMipLevel = 0,
 				.levelCount = 1,
 				.baseArrayLayer = 0,
-				.layerCount = 1
+				.layerCount = 6
 			};
 
 			VkImageMemoryBarrier barrier = {
@@ -120,8 +121,7 @@ namespace st {
 		void createCommandBuffers();
 		void freeCommandBuffers();
 		void recreateSwapChain();
-
-		StWindow& stWindow;
+		
 		StDevice& stDevice;
 		std::unique_ptr<StSwapChain> stSwapChain;
 		std::vector<VkCommandBuffer> commandBuffers;

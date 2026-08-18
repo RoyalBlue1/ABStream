@@ -1,7 +1,9 @@
 #pragma once
 
+#include <immintrin.h>
 #include <filesystem>
 #include <cli11/CLI11.hpp>
+#include <spdlog/spdlog.h>
 namespace fs = std::filesystem;
 
 namespace st {
@@ -26,16 +28,18 @@ namespace st {
 		float brushProbeGenerationGridSize;
 		float probeHeight;
 		__m128 maxProbeZ;
+		bool exportProbes;
 		fs::path bspPath;
 
 	private:
 		StSettingsManager() {
-			cubemapResolution = 1024;
+			cubemapResolution = 256;
 			kmeansNodeCount = 8;
 			kmeansIterations = 32;
 			cellSize = 128.f;
 			brushProbeGenerationGridSize = 16.f;
 			probeHeight = 64.f;
+			exportProbes = false;
 			maxProbeZ = _mm_set1_ps(2000.f);
 		}
 		StSettingsManager(int argc, char* argv[]):StSettingsManager()
@@ -49,6 +53,7 @@ namespace st {
 			app.add_option("-s,--cellSize", cellSize, "Cell size");
 			app.add_option("-b,--brushProbeGenerationGridSize",brushProbeGenerationGridSize,"How far apart probe-options are generated on brushes");
 			app.add_option("-H,--probeHeight",probeHeight,"Height of probes above geometry");
+			app.add_flag("-e,--exportProbes",exportProbes,"Store generated probes to file");
 			app.add_option("bspPath", bspPath, "Path to bsp file")->required()->check(CLI::ExistingFile);
 			try
 			{

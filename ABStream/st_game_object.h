@@ -35,7 +35,6 @@ namespace st {
 		id_t getId() { return id; };
 
 		std::shared_ptr<StModel> model{};
-		glm::vec3 color{ 1.0f,1.0f,1.0f };
 		Transform3dComponent transform3d{};
 
 	private:

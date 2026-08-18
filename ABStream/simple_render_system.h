@@ -1,6 +1,6 @@
 #pragma once
 
-#include "st_window.h"
+
 #include "st_pipeline.h"
 #include "st_device.h"
 #include "st_game_object.h"
@@ -21,7 +21,7 @@ namespace st {
 		SimpleRenderSystem &operator=(const SimpleRenderSystem &)=delete;
 
 		void renderGameObjects(FrameInfo & frameInfo,std::vector<StGameObject>& gameObjects);
-		void computeHistogram(VkCommandBuffer& commandBuffer,uint32_t windowX, uint32_t windowY,uint32_t numTextures,VkDescriptorSet* descriptorSet);
+		void computeHistogram(VkCommandBuffer& commandBuffer, VkDescriptorSet* descriptorSet);
 	private:
 
 		void createGraphicPipelineLayout(VkDescriptorSetLayout globalSetLayout);

@@ -19,9 +19,6 @@
 namespace st {
 	struct Vertex {
 		glm::vec3 position{};
-		//glm::vec3 normal{};
-		//glm::vec3 color{};
-		glm::vec3 textureColor{};
 		glm::vec2 uv{};
 		uint32_t materialId{};
 
@@ -29,7 +26,7 @@ namespace st {
 		static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
 
 		bool operator==(const Vertex& other) const {
-			return position==other.position && textureColor == other.textureColor && materialId == other.materialId && uv == other.uv;//&& color == other.color && normal == other.normal ;
+			return position==other.position && materialId == other.materialId && uv == other.uv;//&& color == other.color && normal == other.normal ;
 		}
 
 	};
@@ -40,7 +37,7 @@ namespace std {
 	struct hash<st::Vertex> {
 		size_t operator()(st::Vertex const &vertex) const {
 			size_t seed = 0;
-			st::hashCombine(seed, vertex.position, vertex.textureColor,vertex.materialId,vertex.uv);//vertex.color, vertex.normal, vertex.uv,vertex.materialId);
+			st::hashCombine(seed, vertex.position,vertex.materialId,vertex.uv);//vertex.color, vertex.normal, vertex.uv,vertex.materialId);
 			return seed;
 		}
 	};

@@ -1,6 +1,6 @@
 #include "st_app.h"
 #include "simple_render_system.h"
-#include "keyboard_movement_controller.h"
+
 #include "st_camera.h"
 #include "st_material_management.h"
 #include "st_buffer.h"
@@ -18,6 +18,7 @@
 #include <glm/glm.hpp>
 
 #include "st_stbsp_exporter.h"
+#include "indicators/progress_bar.hpp"
 
 
 namespace st {
@@ -30,10 +31,10 @@ namespace st {
 	StApp::StApp()
 	{
 		globalPool = StDescriptorPool::Builder(stDevice)
-			.setMaxSets(StSwapChain::MAX_FRAMES_IN_FLIGHT)
+			.setMaxSets(StSwapChain::MAX_FRAMES_IN_FLIGHT*StSwapChain::FACE_COUNT)
 			//.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,StSwapChain::MAX_FRAMES_IN_FLIGHT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, StSwapChain::MAX_FRAMES_IN_FLIGHT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, StSwapChain::MAX_FRAMES_IN_FLIGHT)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, StSwapChain::MAX_FRAMES_IN_FLIGHT*StSwapChain::FACE_COUNT)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, StSwapChain::MAX_FRAMES_IN_FLIGHT*StSwapChain::FACE_COUNT)
 			.build();
 		loadGameObjects(StSettingsManager::getManager().bspPath);
 
@@ -62,7 +63,7 @@ namespace st {
 				StMaterialManager::getManager().getMaterialCount() * 16 * sizeof(uint32_t),
 				1,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 			histogramBuffer[i]->map();
 			memset(histogramBuffer[i]->getMappedMemory(),0,histogramBuffer[i]->getInstanceSize());
 			histogramBuffer[i]->unmap();
@@ -76,7 +77,7 @@ namespace st {
 			.build();
 
 
-		std::vector<VkDescriptorSet> globalDescriptorSets(StSwapChain::MAX_FRAMES_IN_FLIGHT);
+		std::vector<VkDescriptorSet> globalDescriptorSets(StSwapChain::MAX_FRAMES_IN_FLIGHT*StSwapChain::FACE_COUNT);
 
 
 
@@ -89,122 +90,116 @@ namespace st {
 		camera.setViewDirection(glm::vec3{ 0.f }, glm::vec3(0.5f, 0.f, 1.f));
 
 
-		for (size_t i = 0; i < globalDescriptorSets.size(); i++) {
+		for (size_t frame = 0; frame < StSwapChain::MAX_FRAMES_IN_FLIGHT; frame++) {
+			for (size_t face = 0; face < StSwapChain::FACE_COUNT; face++)
+			{
+				auto histoInfo = histogramBuffer[frame]->descriptorInfo();
+
+
+				StDescriptorWriter(*globalSetLayout, *globalPool)
+					//.writeBuffer(0,&uboInfo)
+					.writeImage(1, stRenderer.binDescriptorInfo(frame*StSwapChain::FACE_COUNT+face))
+					.writeBuffer(2, &histoInfo)
+					.build(globalDescriptorSets[frame*StSwapChain::FACE_COUNT+face]);
+			}
 			//auto uboInfo = uboBuffers[i]->descriptorInfo();
-			auto histoInfo = histogramBuffer[i]->descriptorInfo();
 
-
-			StDescriptorWriter(*globalSetLayout, *globalPool)
-				//.writeBuffer(0,&uboInfo)
-				.writeImage(1, stRenderer.binDescriptorInfo(i))
-				.writeBuffer(2, &histoInfo)
-				.build(globalDescriptorSets[i]);
 
 		}
 
 		auto currentTime = std::chrono::high_resolution_clock::now();
 
 		std::vector<std::string> matNames = StMaterialManager::getManager().getMaterialNameList();
-		std::ofstream debugData("test.txt");
+
+		if (StSettingsManager::getManager().exportProbes)
+		{
+			fs::path debugPath = StSettingsManager::getManager().bspPath.replace_extension("");
+			std::string name = debugPath.filename().string() + "_probes.txt";
+
+
+
+
+			std::ofstream debugData(debugPath.replace_filename(name));
+			for (auto& cell : cells) {
+				for (auto cubeMapPos : cell.outputArray) {
+					float pos[4];
+					_mm_store_ps(pos, cubeMapPos);
+					debugData << std::format("< {}, {}, {} >,\n",
+						pos[0], pos[1], pos[2]);
+				}
+			}
+			debugData.close();
+		}
+
 		int count = 0;
 
 		for (auto& cell : cells) {
-			for (auto cubeMapPos : cell.outputArray) {
-				float pos[4];
-				_mm_store_ps(pos, cubeMapPos);
-				debugData << std::format("< {}, {}, {} >,\n",
-					pos[0], pos[1], pos[2]);
-				if(count++>32000)break;
-			}
-			if(count>32000)break;
+			count += cell.outputArray.size();
 		}
-		debugData.close();
-		bool shouldClose = false;
+		indicators::ProgressBar probeBar{
+			indicators::option::BarWidth{50},
+			indicators::option::ForegroundColor{indicators::Color::white},
+			indicators::option::ShowElapsedTime{true},
+			indicators::option::ShowRemainingTime{true},
+			indicators::option::PrefixText{"Calculating Probe Cube Maps"},
+			indicators::option::MaxProgress{count}
+		};
+		float aspect = stRenderer.getAspectRatio();
+		camera.setPerspectiveProjection(glm::radians(90.0f), aspect, 0.01f, 30000.f);
+
+		std::array<std::function<void()>,StSwapChain::MAX_FRAMES_IN_FLIGHT> readCallbacks;
 		for (auto& cell : cells) {
-			if (!cell.outputArray.size())continue;
+			if (cell.outputArray.empty())continue;
+			cell.histogramData.resize(StMaterialManager::getManager().getMaterialCount()*16);
+			memset(cell.histogramData.data(),0,sizeof(uint32_t)*cell.histogramData.size());
 			for (auto cubeMapPos : cell.outputArray) {
-				for (int sideIndex = 0; sideIndex < 6; sideIndex++) {
-					bool shouldClose = stWindow.shouldClose();
-					if(shouldClose)break;
-					glfwPollEvents();
-					auto newTime = std::chrono::high_resolution_clock::now();
-					float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
-					currentTime = newTime;
 
+				auto commandBuffer = stRenderer.beginFrame();
 
-					float x = _mm_cvtss_f32(cubeMapPos);
-					float y = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 1)));
-					float z = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 2)));
+				uint32_t frameIndex = stRenderer.getFrameIndex();
 
-
-					static std::vector<glm::vec3> sides = {
-						{0.f,0.f,0.f},
-						{0.f,glm::radians(90.f),0.f},
-						{0.f,glm::radians(180.f),0.f},
-						{0.f,glm::radians(270.f),0.f},
-						{glm::radians(90.f),0.f,0.f},
-						{glm::radians(-90.f),0.f,0.f}
-					};
-
-
-					camera.setViewYXZ(glm::vec3{ x,-z,y }, sides[sideIndex]);
-					float aspect = stRenderer.getAspectRatio();
-					camera.setPerspectiveProjection(glm::radians(90.0f), aspect, 0.01f, 30000.f);
-
-
-					if (auto commandBuffer = stRenderer.beginFrame()) {
-
-						int frameIndex = stRenderer.getFrameIndex();
-						FrameInfo frameInfo{ frameIndex, frameTime, commandBuffer, camera,globalDescriptorSets[frameIndex] };
-
-						// update
-						// GlobalUbo ubo{};
-						//ubo.projectionView = camera.getProjection() * camera.getView();
-						//uboBuffers[frameIndex]->writeToBuffer(&ubo);
-						//uboBuffers[frameIndex]->flush();
-
-						
-
-
-
-						// render
-						stRenderer.beginSwapChainRenderpass(commandBuffer);
-						simpleRender.renderGameObjects(frameInfo, gameObjects);
-
-
-						//if (glfwGetKey(stWindow.getGLFWwindow(), GLFW_KEY_P) == GLFW_PRESS) {
-						//    
-						//    for (int j = 0; j < matNames.size(); j++) {
-						//        
-						//        std::string print = matNames[j];
-						//        for (int i = 0; i < 16; i++) {
-						//            print = std::format("{} {}", print, histogramData[j * 16 + i]);
-						//        }
-						//        printf("%s\n",print.c_str());
-						//    }
-						//    spdlog::info("{}",frameTime);
-						//}
-
-
-						
-						
-
-
-						stRenderer.endSwapChainRenderpass(commandBuffer);
-						stRenderer.binImageComputeStartBarrier(commandBuffer);
-						simpleRender.computeHistogram(commandBuffer,stWindow.getExtent().width,stWindow.getExtent().height,StMaterialManager::getManager().getMaterialCount(), &globalDescriptorSets[frameIndex]);
-						stRenderer.binImageComputeEndBarrier(commandBuffer);
-
-						stRenderer.endFrame();
-
-					}
-				}
-				//read histogram here
-				vkDeviceWaitIdle(stDevice.device());
-				cell.histogramData.resize(StMaterialManager::getManager().getMaterialCount()*16);
-				memset(cell.histogramData.data(),0,sizeof(uint32_t)*cell.histogramData.size());
-				for (auto& histoBuf:histogramBuffer)
+				if (readCallbacks[frameIndex])
 				{
+					readCallbacks[frameIndex]();
+					readCallbacks[frameIndex] = nullptr;
+				}
+				float x = _mm_cvtss_f32(cubeMapPos);
+				float y = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 1)));
+				float z = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 2)));
+
+				static std::vector<glm::vec3> sides = {
+					{0.f,0.f,0.f},
+					{0.f,glm::radians(90.f),0.f},
+					{0.f,glm::radians(180.f),0.f},
+					{0.f,glm::radians(270.f),0.f},
+					{glm::radians(90.f),0.f,0.f},
+					{glm::radians(-90.f),0.f,0.f}
+				};
+
+				for (int sideIndex = 0; sideIndex < StSwapChain::FACE_COUNT; sideIndex++)
+				{
+					camera.setViewYXZ(glm::vec3{ x,-z,y }, sides[sideIndex]);
+
+
+					FrameInfo frameInfo{ frameIndex, commandBuffer, camera,globalDescriptorSets[frameIndex*StSwapChain::FACE_COUNT+sideIndex] };
+					stRenderer.beginSwapChainRenderpass(commandBuffer,sideIndex);
+					simpleRender.renderGameObjects(frameInfo, gameObjects);
+					stRenderer.endSwapChainRenderpass(commandBuffer);
+				}
+
+				stRenderer.binImageComputeStartBarrier(commandBuffer);
+				for (int sideIndex = 0;sideIndex<StSwapChain::FACE_COUNT;sideIndex++)
+				{
+					simpleRender.computeHistogram(commandBuffer, &globalDescriptorSets[frameIndex*StSwapChain::FACE_COUNT+sideIndex]);
+				}
+
+				stRenderer.binImageComputeEndBarrier(commandBuffer);
+				stRenderer.endFrame();
+
+				auto& histoBuf = histogramBuffer[frameIndex];
+				readCallbacks[frameIndex] = [&histoBuf,&cell]()
+				{
+
 					histoBuf->map();
 					uint32_t* data = (uint32_t*)histoBuf->getMappedMemory();
 					for (int i = 0;i<StMaterialManager::getManager().getMaterialCount()*16;i++)
@@ -213,29 +208,22 @@ namespace st {
 					}
 					memset(histoBuf->getMappedMemory(),0,histoBuf->getInstanceSize());
 					histoBuf->unmap();
-				}
+				};
 
 
-				if(shouldClose)break;
+
+				probeBar.tick();
+
 			}
-
-			// for (int i = 0;i<StMaterialManager::getManager().getMaterialCount();i++)
-			// {
-			//
-			// 	std::string name = StMaterialManager::getManager().getMaterialName(i);
-			// 	uint32_t* counts = &cell.histogramData[i*16];
-			// 	spdlog::info("Material {} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X}",
-			// 		name,
-			// 		counts[0],counts[1],counts[2],counts[3],
-			// 		counts[4],counts[5],counts[6],counts[7],
-			// 		counts[8],counts[9],counts[10],counts[11],
-			// 		counts[12],counts[13],counts[14],counts[15]);
-			// }
-
-			if(shouldClose)break;
 		}
-		vkDeviceWaitIdle(stDevice.device());
-		if (shouldClose)return;
+
+		for (int frameIndex = 0;frameIndex<StSwapChain::MAX_FRAMES_IN_FLIGHT;frameIndex++)
+		{
+			if(!readCallbacks[frameIndex])continue;
+			stRenderer.waitForFrame(frameIndex);
+			readCallbacks[frameIndex]();
+			readCallbacks[frameIndex] = nullptr;
+		}
 
 		int xMin = std::numeric_limits<int>::max();
 		int yMin = std::numeric_limits<int>::max();
@@ -254,10 +242,10 @@ namespace st {
 		{
 			exporter.AddRpakMaterial(StMaterialManager::getManager().getMaterialName(i));
 		}
-		for (int x = xMin; x < xMax; x+=4-x%4)
+		for (int x = xMin; x < xMax; x+=4)
 		{
 			int xlimit = std::min(x+4,xMax);
-			for (int y = yMin; y < yMax; y+=4-y%4)
+			for (int y = yMin; y < yMax; y+=4)
 			{
 				int ylimit = std::min(y+4,yMax);
 				std::vector<std::vector<uint32_t>> histograms;
@@ -287,7 +275,7 @@ namespace st {
 	void calculateCellPositions(Cell& cell) {
 		size_t nodeCount = StSettingsManager::getManager().kmeansNodeCount;
 		const std::vector<__m128>& input = cell.inputArray;
-		if (input.size() == 0)return;
+		if (input.empty())return;
 		if (input.size() <= nodeCount) {
 			cell.outputArray = input;
 			return;
@@ -308,14 +296,14 @@ namespace st {
 				do {
 					int index = rand()%input.size();
 					n = input[index];
-					bool dublicate = false;
+					bool duplicate = false;
 					for (const auto& a : nodes) {
 						if (_mm_movemask_ps(_mm_cmpeq_ps(a, n)) == 0xF) {
-							dublicate = true;
+							duplicate = true;
 							break;
 						}
 					}
-					if(!dublicate)break;
+					if(!duplicate)break;
 				} while(true);
 				nodes.push_back(n);
 			}
@@ -359,6 +347,7 @@ namespace st {
 			}
 			if (_mm_movemask_ps(_mm_cmplt_ps(averageDistance, bestDistance))) {
 				bestCaseNodes = nodes;
+				bestDistance = averageDistance;
 			}
 			nodes.clear();
 		}
@@ -392,19 +381,21 @@ namespace st {
 			gameObjects.push_back(std::move(cube));
 
 		}
-
-		std::for_each(std::execution::par, cells.begin(), cells.end(), [&loader](Cell& cell) {
+		indicators::ProgressBar kmeansBar{
+			indicators::option::BarWidth{50},
+			indicators::option::ForegroundColor{indicators::Color::white},
+			indicators::option::ShowElapsedTime{true},
+			indicators::option::ShowRemainingTime{true},
+			indicators::option::PrefixText{"Prune Probes"},
+			indicators::option::MaxProgress{cells.size()}
+		};
+		std::for_each(std::execution::par, cells.begin(), cells.end(), [&loader,&kmeansBar](Cell& cell) {
 			testPointCollisions(loader,cell);
 			calculateCellPositions(cell);
-			if(cell.outputArray.size())
-				spdlog::info("cell {} {} computed with {} data points", cell.xIndex, cell.yIndex,cell.inputArray.size());
+			kmeansBar.tick();
 		});
 
-		size_t numCubeMaps = 0;
-		for (const auto& cell : cells) {
-			numCubeMaps += cell.outputArray.size();
-		}
-		spdlog::info("Computing {} cubemaps",numCubeMaps);
+
 	}
 
 	

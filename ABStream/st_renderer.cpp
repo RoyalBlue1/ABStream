@@ -1,13 +1,15 @@
 #include "st_renderer.h"
 
+#include <array>
 
+#include "st_settings_controller.h"
 
 namespace st {
 
 
 
 
-	StRenderer::StRenderer(StWindow& window, StDevice& device) :stWindow{ window }, stDevice{ device }, isFrameStarted{ false }, currentImageIndex{ 0 }, currentFrameIndex{ 0 } {
+	StRenderer::StRenderer( StDevice& device) : stDevice{ device }, isFrameStarted{ false }, currentImageIndex{ 0 }, currentFrameIndex{ 0 } {
 
 		recreateSwapChain();
 		createCommandBuffers();
@@ -20,24 +22,11 @@ namespace st {
 	
 
 	void StRenderer::recreateSwapChain() {
-		auto extent = stWindow.getExtent();
-		while (extent.width == 0 || extent.height == 0) {
-			extent = stWindow.getExtent();
-			glfwWaitEvents();
-		}
+
 		vkDeviceWaitIdle(stDevice.device());
-		if (stSwapChain == nullptr) {
-			stSwapChain = std::make_unique<StSwapChain>(stDevice, extent);
-		}
-		else {
-			std::shared_ptr<StSwapChain> oldSwapChain = std::move(stSwapChain);
-			stSwapChain = std::make_unique<StSwapChain>(stDevice, extent,oldSwapChain);
+		uint32_t res = StSettingsManager::getManager().cubemapResolution;
+		stSwapChain = std::make_unique<StSwapChain>(stDevice, VkExtent2D{res,res});
 
-			if (!oldSwapChain->compareSwapFormats(*stSwapChain.get())) {
-				throw std::runtime_error("SwapChain format has changed");
-			}
-
-		}
 
 	}
 
@@ -64,15 +53,12 @@ namespace st {
 		assert(!isFrameStarted && "Frame already Started");
 		auto res = stSwapChain->acquireNextImage(&currentImageIndex);
 
-		if (res == VK_ERROR_OUT_OF_DATE_KHR) {
-			recreateSwapChain();
-			return nullptr;
-		}
 
 		if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR) {
 			throw std::runtime_error("failed to acqure swap chain image");
 		}
 		isFrameStarted = true;
+
 		auto buffer = getCurrentCommandBuffer();
 
 		VkCommandBufferBeginInfo beginInfo{};
@@ -84,6 +70,11 @@ namespace st {
 		return buffer;
 	}
 
+	void StRenderer::waitForFrame(int frameIndex)
+	{
+		stSwapChain->waitForFence(frameIndex);
+	}
+
 	void StRenderer::endFrame() {
 		assert(isFrameStarted && "Cant end frame when no frame rendering");
 		auto buffer = getCurrentCommandBuffer();
@@ -91,36 +82,29 @@ namespace st {
 		if(vkEndCommandBuffer(buffer)!=VK_SUCCESS)
 			throw std::runtime_error("failed to record command buffer");
 		VkResult res = stSwapChain->submitCommandBuffers(&buffer,&currentImageIndex);
-		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || stWindow.wasWindowResized()) {
-			stWindow.resetWindowResizedFlag();
-			recreateSwapChain();
-		} else if (res != VK_SUCCESS) {
+		if (res != VK_SUCCESS) {
 			throw std::runtime_error("failed to submit command buffer");
 		}
 		isFrameStarted = false;
 		currentFrameIndex = (currentFrameIndex +1) % StSwapChain::MAX_FRAMES_IN_FLIGHT;
 	}
 
-	void StRenderer::beginSwapChainRenderpass(VkCommandBuffer commandBuffer){
+	void StRenderer::beginSwapChainRenderpass(VkCommandBuffer commandBuffer,int face){
 		assert(isFrameStarted && "Cant start RenderPass when no frame rendering");
 		assert(commandBuffer==getCurrentCommandBuffer() && "Cant begin render pass on comamnd buffer from different frame");
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = stSwapChain->getRenderPass();
-		renderPassInfo.framebuffer = stSwapChain->getFrameBuffer(currentImageIndex);
+		renderPassInfo.framebuffer = stSwapChain->getFrameBuffer(currentImageIndex,face);
 		renderPassInfo.renderArea.offset = {0, 0};
 		renderPassInfo.renderArea.extent = stSwapChain->getSwapChainExtent();
-		std::array<VkClearValue, 3> clearValues{};
-		clearValues[0].color = {0.1f, 0.1f, 0.1f, 1.0f};
-		clearValues[1].color.int32[0] = -1;
-		clearValues[1].color.int32[1] = -1;
-		clearValues[1].color.int32[2] = -1;
-		clearValues[1].color.int32[3] = -1;
-		//clearValues[2].color.int32[0] = -1;
-		//clearValues[2].color.int32[1] = -1;
-		//clearValues[2].color.int32[2] = -1;
-		//clearValues[2].color.int32[3] = -1;
-		clearValues[2].depthStencil = {1.0f, 0};
+		std::array<VkClearValue, 2> clearValues{};
+
+		clearValues[0].color.int32[0] = -1;
+		clearValues[0].color.int32[1] = -1;
+		clearValues[0].color.int32[2] = -1;
+		clearValues[0].color.int32[3] = -1;
+		clearValues[1].depthStencil = {1.0f, 0};
 
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 		renderPassInfo.pClearValues = clearValues.data();

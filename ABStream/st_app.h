@@ -1,6 +1,6 @@
 #pragma once
 
-#include "st_window.h"
+
 
 #include "st_renderer.h"
 #include "st_game_object.h"
@@ -30,9 +30,9 @@ namespace st {
 
 		
 
-		StWindow stWindow{ "StBspGen"};
-		StDevice stDevice{stWindow};
-		StRenderer stRenderer{stWindow,stDevice};
+
+		StDevice stDevice{};
+		StRenderer stRenderer{stDevice};
 
 		std::unique_ptr<StDescriptorPool> globalPool{};
 		std::vector<Cell> cells;

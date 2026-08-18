@@ -4,6 +4,9 @@
 #include <iostream>
 #include <set>
 #include <unordered_set>
+
+#include "st_settings_controller.h"
+
 namespace st {
     // local callback functions
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -40,10 +43,10 @@ namespace st {
         }
     }
     // class member functions
-    StDevice::StDevice(StWindow &window) : window{window} {
+    StDevice::StDevice()  {
         createInstance();
         setupDebugMessenger();
-        createSurface();
+
         pickPhysicalDevice();
         createLogicalDevice();
         createCommandPool();
@@ -54,7 +57,6 @@ namespace st {
         if (enableValidationLayers) {
             DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
         }
-        vkDestroySurfaceKHR(instance, surface_, nullptr);
         vkDestroyInstance(instance, nullptr);
     }
     void StDevice::createInstance() {
@@ -63,7 +65,7 @@ namespace st {
         }
         VkApplicationInfo appInfo = {};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "StbspGenerator";
+        appInfo.pApplicationName = "ABStream";
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "No Engine";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -76,18 +78,21 @@ namespace st {
         createInfo.ppEnabledExtensionNames = extensions.data();
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
         if (enableValidationLayers) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-            createInfo.ppEnabledLayerNames = validationLayers.data();
             populateDebugMessengerCreateInfo(debugCreateInfo);
             createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
-        } else {
-            createInfo.enabledLayerCount = 0;
+            createInfo.ppEnabledLayerNames =validationLayers.data();
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        }else
+        {
             createInfo.pNext = nullptr;
+            createInfo.ppEnabledLayerNames = VK_NULL_HANDLE;
+            createInfo.enabledLayerCount = 0;
         }
+
         if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
             throw std::runtime_error("failed to create instance!");
         }
-        hasGflwRequiredInstanceExtensions();
+
     }
     void StDevice::pickPhysicalDevice() {
         uint32_t deviceCount = 0;
@@ -130,21 +135,18 @@ namespace st {
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.pEnabledFeatures = &deviceFeatures;
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-        createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-        // might not really be necessary anymore because device specific validation layers
-        // have been deprecated
-        if (enableValidationLayers) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-            createInfo.ppEnabledLayerNames = validationLayers.data();
-        } else {
-            createInfo.enabledLayerCount = 0;
-        }
+
+        createInfo.enabledExtensionCount = 0;
+        createInfo.ppEnabledExtensionNames = VK_NULL_HANDLE;
+
+
+
+        createInfo.enabledLayerCount = 0;
+        createInfo.ppEnabledLayerNames = VK_NULL_HANDLE;
         if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create logical device!");
         }
         vkGetDeviceQueue(device_, indices.graphicsFamily, 0, &graphicsQueue_);
-        vkGetDeviceQueue(device_, indices.presentFamily, 0, &presentQueue_);
     }
     void StDevice::createCommandPool() {
         QueueFamilyIndices queueFamilyIndices = findPhysicalQueueFamilies();
@@ -157,20 +159,15 @@ namespace st {
             throw std::runtime_error("failed to create command pool!");
         }
     }
-    void StDevice::createSurface() { window.createWindowSurface(instance, &surface_); }
+
     bool StDevice::isDeviceSuitable(VkPhysicalDevice device) {
         QueueFamilyIndices indices = findQueueFamilies(device);
-        bool extensionsSupported = checkDeviceExtensionSupport(device);
-        bool swapChainAdequate = false;
-        if (extensionsSupported) {
-            SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
-            swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
-        }
         VkPhysicalDeviceFeatures supportedFeatures;
         vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
-        return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-            supportedFeatures.samplerAnisotropy;
+        return indices.isComplete() && supportedFeatures.samplerAnisotropy;
     }
+
+
     void StDevice::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
         createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -211,35 +208,14 @@ namespace st {
         return true;
     }
     std::vector<const char *> StDevice::getRequiredExtensions() {
-        uint32_t glfwExtensionCount = 0;
-        const char **glfwExtensions;
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-        std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        std::vector<const char *> extensions;
+
         if (enableValidationLayers) {
             extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
         return extensions;
     }
-    void StDevice::hasGflwRequiredInstanceExtensions() {
-        uint32_t extensionCount = 0;
-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-        std::vector<VkExtensionProperties> extensions(extensionCount);
-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-        std::cout << "available extensions:" << std::endl;
-        std::unordered_set<std::string> available;
-        for (const auto &extension : extensions) {
-            std::cout << "\t" << extension.extensionName << std::endl;
-            available.insert(extension.extensionName);
-        }
-        std::cout << "required extensions:" << std::endl;
-        auto requiredExtensions = getRequiredExtensions();
-        for (const auto &required : requiredExtensions) {
-            std::cout << "\t" << required << std::endl;
-            if (available.find(required) == available.end()) {
-                throw std::runtime_error("Missing required glfw extension");
-            }
-        }
-    }
+
     bool StDevice::checkDeviceExtensionSupport(VkPhysicalDevice device) {
         uint32_t extensionCount;
         vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
@@ -261,46 +237,22 @@ namespace st {
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
-        int i = 0;
-        for (const auto &queueFamily : queueFamilies) {
-            if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+
+
+        for (uint32_t i = 0; i < queueFamilyCount; i++) {
+            if (queueFamilies[i].queueCount > 0 &&
+                queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                 indices.graphicsFamily = i;
                 indices.graphicsFamilyHasValue = true;
-            }
-            VkBool32 presentSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface_, &presentSupport);
-            if (queueFamily.queueCount > 0 && presentSupport) {
                 indices.presentFamily = i;
                 indices.presentFamilyHasValue = true;
-            }
-            if (indices.isComplete()) {
                 break;
-            }
-            i++;
+                }
         }
         return indices;
+
     }
-    SwapChainSupportDetails StDevice::querySwapChainSupport(VkPhysicalDevice device) {
-        SwapChainSupportDetails details;
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface_, &details.capabilities);
-        uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface_, &formatCount, nullptr);
-        if (formatCount != 0) {
-            details.formats.resize(formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface_, &formatCount, details.formats.data());
-        }
-        uint32_t presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface_, &presentModeCount, nullptr);
-        if (presentModeCount != 0) {
-            details.presentModes.resize(presentModeCount);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(
-                device,
-                surface_,
-                &presentModeCount,
-                details.presentModes.data());
-        }
-        return details;
-    }
+
     VkFormat StDevice::findSupportedFormat(
         const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
         for (VkFormat format : candidates) {

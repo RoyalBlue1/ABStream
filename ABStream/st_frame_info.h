@@ -4,8 +4,7 @@
 #include <vulkan/vulkan.h>
 namespace st {
 	struct FrameInfo {
-		int frameIndex;
-		float frameTime;
+		uint32_t frameIndex;
 		VkCommandBuffer commandBuffer;
 		StCamera &camera;
 		VkDescriptorSet globalDescriptorSet;
