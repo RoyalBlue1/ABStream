@@ -37,6 +37,7 @@ namespace st {
 			return stSwapChain->extentAspectRatio();
 		}
 		VkCommandBuffer beginFrame();
+		void waitForFrame(int frameIndex);
 		void endFrame();
 		void beginSwapChainRenderpass(VkCommandBuffer commandBuffer,int face);
 		void endSwapChainRenderpass(VkCommandBuffer commandBuffer);

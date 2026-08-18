@@ -76,6 +76,17 @@ namespace st {
         return VK_SUCCESS;
 
     }
+
+    void StSwapChain::waitForFence(uint32_t frameIndex)
+    {
+        vkWaitForFences(
+            device.device(),
+            1,
+            &inFlightFences[frameIndex],
+            VK_TRUE,
+            std::numeric_limits<uint64_t>::max());
+    }
+
     VkResult StSwapChain::submitCommandBuffers(const VkCommandBuffer *buffers, uint32_t *imageIndex) {
 
 

@@ -146,51 +146,59 @@ namespace st {
 		};
 		float aspect = stRenderer.getAspectRatio();
 		camera.setPerspectiveProjection(glm::radians(90.0f), aspect, 0.01f, 30000.f);
+
+		std::array<std::function<void()>,StSwapChain::MAX_FRAMES_IN_FLIGHT> readCallbacks;
 		for (auto& cell : cells) {
 			if (cell.outputArray.empty())continue;
 			cell.histogramData.resize(StMaterialManager::getManager().getMaterialCount()*16);
 			memset(cell.histogramData.data(),0,sizeof(uint32_t)*cell.histogramData.size());
 			for (auto cubeMapPos : cell.outputArray) {
 
-				if (auto commandBuffer = stRenderer.beginFrame())
+				auto commandBuffer = stRenderer.beginFrame();
+
+				uint32_t frameIndex = stRenderer.getFrameIndex();
+
+				if (readCallbacks[frameIndex])
 				{
-					float x = _mm_cvtss_f32(cubeMapPos);
-					float y = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 1)));
-					float z = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 2)));
-					uint32_t frameIndex = stRenderer.getFrameIndex();
+					readCallbacks[frameIndex]();
+					readCallbacks[frameIndex] = nullptr;
+				}
+				float x = _mm_cvtss_f32(cubeMapPos);
+				float y = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 1)));
+				float z = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 2)));
 
-					static std::vector<glm::vec3> sides = {
-						{0.f,0.f,0.f},
-						{0.f,glm::radians(90.f),0.f},
-						{0.f,glm::radians(180.f),0.f},
-						{0.f,glm::radians(270.f),0.f},
-						{glm::radians(90.f),0.f,0.f},
-						{glm::radians(-90.f),0.f,0.f}
-					};
+				static std::vector<glm::vec3> sides = {
+					{0.f,0.f,0.f},
+					{0.f,glm::radians(90.f),0.f},
+					{0.f,glm::radians(180.f),0.f},
+					{0.f,glm::radians(270.f),0.f},
+					{glm::radians(90.f),0.f,0.f},
+					{glm::radians(-90.f),0.f,0.f}
+				};
 
-					for (int sideIndex = 0; sideIndex < StSwapChain::FACE_COUNT; sideIndex++)
-					{
-						camera.setViewYXZ(glm::vec3{ x,-z,y }, sides[sideIndex]);
+				for (int sideIndex = 0; sideIndex < StSwapChain::FACE_COUNT; sideIndex++)
+				{
+					camera.setViewYXZ(glm::vec3{ x,-z,y }, sides[sideIndex]);
 
 
-						FrameInfo frameInfo{ frameIndex, commandBuffer, camera,globalDescriptorSets[frameIndex*StSwapChain::FACE_COUNT+sideIndex] };
-						stRenderer.beginSwapChainRenderpass(commandBuffer,sideIndex);
-						simpleRender.renderGameObjects(frameInfo, gameObjects);
-						stRenderer.endSwapChainRenderpass(commandBuffer);
-					}
+					FrameInfo frameInfo{ frameIndex, commandBuffer, camera,globalDescriptorSets[frameIndex*StSwapChain::FACE_COUNT+sideIndex] };
+					stRenderer.beginSwapChainRenderpass(commandBuffer,sideIndex);
+					simpleRender.renderGameObjects(frameInfo, gameObjects);
+					stRenderer.endSwapChainRenderpass(commandBuffer);
+				}
 
-					stRenderer.binImageComputeStartBarrier(commandBuffer);
-					for (int sideIndex = 0;sideIndex<StSwapChain::FACE_COUNT;sideIndex++)
-					{
-						simpleRender.computeHistogram(commandBuffer, &globalDescriptorSets[frameIndex*StSwapChain::FACE_COUNT+sideIndex]);
-					}
+				stRenderer.binImageComputeStartBarrier(commandBuffer);
+				for (int sideIndex = 0;sideIndex<StSwapChain::FACE_COUNT;sideIndex++)
+				{
+					simpleRender.computeHistogram(commandBuffer, &globalDescriptorSets[frameIndex*StSwapChain::FACE_COUNT+sideIndex]);
+				}
 
-					stRenderer.binImageComputeEndBarrier(commandBuffer);
-					stRenderer.endFrame();
+				stRenderer.binImageComputeEndBarrier(commandBuffer);
+				stRenderer.endFrame();
 
-					vkDeviceWaitIdle(stDevice.device());
-
-					auto& histoBuf = histogramBuffer[frameIndex];
+				auto& histoBuf = histogramBuffer[frameIndex];
+				readCallbacks[frameIndex] = [&histoBuf,&cell]()
+				{
 
 					histoBuf->map();
 					uint32_t* data = (uint32_t*)histoBuf->getMappedMemory();
@@ -200,31 +208,22 @@ namespace st {
 					}
 					memset(histoBuf->getMappedMemory(),0,histoBuf->getInstanceSize());
 					histoBuf->unmap();
-				}
+				};
 
-				//read histogram here
 
 
 				probeBar.tick();
 
 			}
-
-			// for (int i = 0;i<StMaterialManager::getManager().getMaterialCount();i++)
-			// {
-			//
-			// 	std::string name = StMaterialManager::getManager().getMaterialName(i);
-			// 	uint32_t* counts = &cell.histogramData[i*16];
-			// 	spdlog::info("Material {} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X} {:X}",
-			// 		name,
-			// 		counts[0],counts[1],counts[2],counts[3],
-			// 		counts[4],counts[5],counts[6],counts[7],
-			// 		counts[8],counts[9],counts[10],counts[11],
-			// 		counts[12],counts[13],counts[14],counts[15]);
-			// }
-
 		}
-		vkDeviceWaitIdle(stDevice.device());
 
+		for (int frameIndex = 0;frameIndex<StSwapChain::MAX_FRAMES_IN_FLIGHT;frameIndex++)
+		{
+			if(!readCallbacks[frameIndex])continue;
+			stRenderer.waitForFrame(frameIndex);
+			readCallbacks[frameIndex]();
+			readCallbacks[frameIndex] = nullptr;
+		}
 
 		int xMin = std::numeric_limits<int>::max();
 		int yMin = std::numeric_limits<int>::max();

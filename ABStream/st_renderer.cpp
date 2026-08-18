@@ -70,6 +70,11 @@ namespace st {
 		return buffer;
 	}
 
+	void StRenderer::waitForFrame(int frameIndex)
+	{
+		stSwapChain->waitForFence(frameIndex);
+	}
+
 	void StRenderer::endFrame() {
 		assert(isFrameStarted && "Cant end frame when no frame rendering");
 		auto buffer = getCurrentCommandBuffer();
