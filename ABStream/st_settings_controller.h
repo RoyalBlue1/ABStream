@@ -33,7 +33,7 @@ namespace st {
 
 	private:
 		StSettingsManager() {
-			cubemapResolution = 1024;
+			cubemapResolution = 256;
 			kmeansNodeCount = 8;
 			kmeansIterations = 32;
 			cellSize = 128.f;
