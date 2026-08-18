@@ -31,10 +31,10 @@ namespace st {
 	StApp::StApp()
 	{
 		globalPool = StDescriptorPool::Builder(stDevice)
-			.setMaxSets(StSwapChain::MAX_FRAMES_IN_FLIGHT)
+			.setMaxSets(StSwapChain::MAX_FRAMES_IN_FLIGHT*StSwapChain::FACE_COUNT)
 			//.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,StSwapChain::MAX_FRAMES_IN_FLIGHT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, StSwapChain::MAX_FRAMES_IN_FLIGHT)
-			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, StSwapChain::MAX_FRAMES_IN_FLIGHT)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, StSwapChain::MAX_FRAMES_IN_FLIGHT*StSwapChain::FACE_COUNT)
+			.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, StSwapChain::MAX_FRAMES_IN_FLIGHT*StSwapChain::FACE_COUNT)
 			.build();
 		loadGameObjects(StSettingsManager::getManager().bspPath);
 
@@ -77,7 +77,7 @@ namespace st {
 			.build();
 
 
-		std::vector<VkDescriptorSet> globalDescriptorSets(StSwapChain::MAX_FRAMES_IN_FLIGHT);
+		std::vector<VkDescriptorSet> globalDescriptorSets(StSwapChain::MAX_FRAMES_IN_FLIGHT*StSwapChain::FACE_COUNT);
 
 
 
@@ -90,16 +90,20 @@ namespace st {
 		camera.setViewDirection(glm::vec3{ 0.f }, glm::vec3(0.5f, 0.f, 1.f));
 
 
-		for (size_t i = 0; i < globalDescriptorSets.size(); i++) {
+		for (size_t frame = 0; frame < StSwapChain::MAX_FRAMES_IN_FLIGHT; frame++) {
+			for (size_t face = 0; face < StSwapChain::FACE_COUNT; face++)
+			{
+				auto histoInfo = histogramBuffer[frame]->descriptorInfo();
+
+
+				StDescriptorWriter(*globalSetLayout, *globalPool)
+					//.writeBuffer(0,&uboInfo)
+					.writeImage(1, stRenderer.binDescriptorInfo(frame*StSwapChain::FACE_COUNT+face))
+					.writeBuffer(2, &histoInfo)
+					.build(globalDescriptorSets[frame*StSwapChain::FACE_COUNT+face]);
+			}
 			//auto uboInfo = uboBuffers[i]->descriptorInfo();
-			auto histoInfo = histogramBuffer[i]->descriptorInfo();
 
-
-			StDescriptorWriter(*globalSetLayout, *globalPool)
-				//.writeBuffer(0,&uboInfo)
-				.writeImage(1, stRenderer.binDescriptorInfo(i))
-				.writeBuffer(2, &histoInfo)
-				.build(globalDescriptorSets[i]);
 
 		}
 
@@ -140,18 +144,20 @@ namespace st {
 			indicators::option::PrefixText{"Calculating Probe Cube Maps"},
 			indicators::option::MaxProgress{count}
 		};
-
+		float aspect = stRenderer.getAspectRatio();
+		camera.setPerspectiveProjection(glm::radians(90.0f), aspect, 0.01f, 30000.f);
 		for (auto& cell : cells) {
 			if (cell.outputArray.empty())continue;
+			cell.histogramData.resize(StMaterialManager::getManager().getMaterialCount()*16);
+			memset(cell.histogramData.data(),0,sizeof(uint32_t)*cell.histogramData.size());
 			for (auto cubeMapPos : cell.outputArray) {
-				for (int sideIndex = 0; sideIndex < 6; sideIndex++) {
 
-
-
+				if (auto commandBuffer = stRenderer.beginFrame())
+				{
 					float x = _mm_cvtss_f32(cubeMapPos);
 					float y = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 1)));
 					float z = _mm_cvtss_f32(_mm_shuffle_ps(cubeMapPos, cubeMapPos, _MM_SHUFFLE(0, 0, 0, 2)));
-
+					uint32_t frameIndex = stRenderer.getFrameIndex();
 
 					static std::vector<glm::vec3> sides = {
 						{0.f,0.f,0.f},
@@ -162,65 +168,30 @@ namespace st {
 						{glm::radians(-90.f),0.f,0.f}
 					};
 
-
-					camera.setViewYXZ(glm::vec3{ x,-z,y }, sides[sideIndex]);
-					float aspect = stRenderer.getAspectRatio();
-					camera.setPerspectiveProjection(glm::radians(90.0f), aspect, 0.01f, 30000.f);
-
-
-					if (auto commandBuffer = stRenderer.beginFrame()) {
-
-						uint32_t frameIndex = stRenderer.getFrameIndex();
-						FrameInfo frameInfo{ frameIndex, commandBuffer, camera,globalDescriptorSets[frameIndex] };
-
-						// update
-						// GlobalUbo ubo{};
-						//ubo.projectionView = camera.getProjection() * camera.getView();
-						//uboBuffers[frameIndex]->writeToBuffer(&ubo);
-						//uboBuffers[frameIndex]->flush();
-
-						
+					for (int sideIndex = 0; sideIndex < StSwapChain::FACE_COUNT; sideIndex++)
+					{
+						camera.setViewYXZ(glm::vec3{ x,-z,y }, sides[sideIndex]);
 
 
-
-						// render
-						stRenderer.beginSwapChainRenderpass(commandBuffer);
+						FrameInfo frameInfo{ frameIndex, commandBuffer, camera,globalDescriptorSets[frameIndex*StSwapChain::FACE_COUNT+sideIndex] };
+						stRenderer.beginSwapChainRenderpass(commandBuffer,sideIndex);
 						simpleRender.renderGameObjects(frameInfo, gameObjects);
-
-
-						//if (glfwGetKey(stWindow.getGLFWwindow(), GLFW_KEY_P) == GLFW_PRESS) {
-						//    
-						//    for (int j = 0; j < matNames.size(); j++) {
-						//        
-						//        std::string print = matNames[j];
-						//        for (int i = 0; i < 16; i++) {
-						//            print = std::format("{} {}", print, histogramData[j * 16 + i]);
-						//        }
-						//        printf("%s\n",print.c_str());
-						//    }
-						//    spdlog::info("{}",frameTime);
-						//}
-
-
-						
-						
-
-
 						stRenderer.endSwapChainRenderpass(commandBuffer);
-						stRenderer.binImageComputeStartBarrier(commandBuffer);
-						simpleRender.computeHistogram(commandBuffer, &globalDescriptorSets[frameIndex]);
-						stRenderer.binImageComputeEndBarrier(commandBuffer);
-
-						stRenderer.endFrame();
-
 					}
-				}
-				//read histogram here
-				vkDeviceWaitIdle(stDevice.device());
-				cell.histogramData.resize(StMaterialManager::getManager().getMaterialCount()*16);
-				memset(cell.histogramData.data(),0,sizeof(uint32_t)*cell.histogramData.size());
-				for (auto& histoBuf:histogramBuffer)
-				{
+
+					stRenderer.binImageComputeStartBarrier(commandBuffer);
+					for (int sideIndex = 0;sideIndex<StSwapChain::FACE_COUNT;sideIndex++)
+					{
+						simpleRender.computeHistogram(commandBuffer, &globalDescriptorSets[frameIndex*StSwapChain::FACE_COUNT+sideIndex]);
+					}
+
+					stRenderer.binImageComputeEndBarrier(commandBuffer);
+					stRenderer.endFrame();
+
+					vkDeviceWaitIdle(stDevice.device());
+
+					auto& histoBuf = histogramBuffer[frameIndex];
+
 					histoBuf->map();
 					uint32_t* data = (uint32_t*)histoBuf->getMappedMemory();
 					for (int i = 0;i<StMaterialManager::getManager().getMaterialCount()*16;i++)
@@ -230,6 +201,10 @@ namespace st {
 					memset(histoBuf->getMappedMemory(),0,histoBuf->getInstanceSize());
 					histoBuf->unmap();
 				}
+
+				//read histogram here
+
+
 				probeBar.tick();
 
 			}

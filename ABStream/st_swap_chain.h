@@ -6,17 +6,22 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <array>
+
+
+
 
 namespace st {
+    
     class StSwapChain {
     public:
         static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+        static constexpr int FACE_COUNT = 6;
         StSwapChain(StDevice &deviceRef, VkExtent2D windowExtent);
-        StSwapChain(StDevice &deviceRef, VkExtent2D windowExtent,std::shared_ptr<StSwapChain> previous);
         ~StSwapChain();
         StSwapChain(const StSwapChain &) = delete;
         StSwapChain& operator=(const StSwapChain &) = delete;
-        VkFramebuffer getFrameBuffer(int index) { return swapChainFramebuffers[index]; }
+        VkFramebuffer getFrameBuffer(int frame,int face) { return swapChainFramebuffers[frame*FACE_COUNT + face]; }
         VkRenderPass getRenderPass() { return renderPass; }
         size_t imageCount() { return binSwapChainImages.size(); }
         VkExtent2D getSwapChainExtent() { return swapChainExtent; }
@@ -38,7 +43,6 @@ namespace st {
 
     private:
         void init();
-        void createSwapChain();
         void createSwapChainHeadless();
         void createImageViews();
         void createDepthResources();
@@ -51,7 +55,8 @@ namespace st {
         std::vector<VkFramebuffer> swapChainFramebuffers;
         VkRenderPass renderPass;
         std::vector<VkImage> depthImages;
-        std::vector<VkDeviceMemory> depthImageMemorys;
+        std::vector<VkDeviceMemory>
+        depthImageMemorys;
         std::vector<VkImageView> depthImageViews;
         std::vector<VkImage> binSwapChainImages;
         std::vector<VkImageView> binSwapChainImageViews;
@@ -68,7 +73,6 @@ namespace st {
         VkSwapchainKHR swapChain = VK_NULL_HANDLE;
         std::shared_ptr<StSwapChain> oldSwapChain;
         std::vector<VkFence> inFlightFences;
-        std::vector<VkFence> imagesInFlight;
         size_t currentFrame = 0;
     };
 }  // namespace lve

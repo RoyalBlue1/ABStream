@@ -58,6 +58,7 @@ namespace st {
 			throw std::runtime_error("failed to acqure swap chain image");
 		}
 		isFrameStarted = true;
+
 		auto buffer = getCurrentCommandBuffer();
 
 		VkCommandBufferBeginInfo beginInfo{};
@@ -83,13 +84,13 @@ namespace st {
 		currentFrameIndex = (currentFrameIndex +1) % StSwapChain::MAX_FRAMES_IN_FLIGHT;
 	}
 
-	void StRenderer::beginSwapChainRenderpass(VkCommandBuffer commandBuffer){
+	void StRenderer::beginSwapChainRenderpass(VkCommandBuffer commandBuffer,int face){
 		assert(isFrameStarted && "Cant start RenderPass when no frame rendering");
 		assert(commandBuffer==getCurrentCommandBuffer() && "Cant begin render pass on comamnd buffer from different frame");
 		VkRenderPassBeginInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = stSwapChain->getRenderPass();
-		renderPassInfo.framebuffer = stSwapChain->getFrameBuffer(currentImageIndex);
+		renderPassInfo.framebuffer = stSwapChain->getFrameBuffer(currentImageIndex,face);
 		renderPassInfo.renderArea.offset = {0, 0};
 		renderPassInfo.renderArea.extent = stSwapChain->getSwapChainExtent();
 		std::array<VkClearValue, 2> clearValues{};

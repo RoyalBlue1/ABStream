@@ -34,9 +34,12 @@ namespace st {
             swapChain = nullptr;
         }
         for (int i = 0; i < depthImages.size(); i++) {
-            vkDestroyImageView(device.device(), depthImageViews[i], nullptr);
             vkDestroyImage(device.device(), depthImages[i], nullptr);
             vkFreeMemory(device.device(), depthImageMemorys[i], nullptr);
+        }
+        for (int i = 0; i < depthImageViews.size(); i++)
+        {
+            vkDestroyImageView(device.device(), depthImageViews[i], nullptr);
         }
         for (auto framebuffer : swapChainFramebuffers) {
             vkDestroyFramebuffer(device.device(), framebuffer, nullptr);
@@ -110,12 +113,13 @@ namespace st {
             image.extent.height = swapChainExtent.height;
             image.extent.depth = 1;
             image.mipLevels = 1;
-            image.arrayLayers = 1;
+            image.arrayLayers = 6;
             image.samples = VK_SAMPLE_COUNT_1_BIT;
             image.tiling = VK_IMAGE_TILING_OPTIMAL;
             image.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                          VK_IMAGE_USAGE_STORAGE_BIT |
                          VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+            image.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 
             VkMemoryAllocateInfo memAlloc{};
             VkMemoryRequirements memReqs;
@@ -134,38 +138,38 @@ namespace st {
 
     void StSwapChain::createImageViews() {
 
-        binSwapChainImageViews.resize(binSwapChainImages.size());
+        binSwapChainImageViews.resize(MAX_FRAMES_IN_FLIGHT*FACE_COUNT);
+        binBindDescriptorInfo.resize(MAX_FRAMES_IN_FLIGHT*FACE_COUNT);
 
 
-        for (size_t i = 0; i < binSwapChainImages.size(); i++) {
-            VkImageViewCreateInfo viewInfo{};
-            viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            viewInfo.image = binSwapChainImages[i];
-            viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-            viewInfo.format = VK_FORMAT_R32_UINT;
-            viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            viewInfo.subresourceRange.baseMipLevel = 0;
-            viewInfo.subresourceRange.levelCount = 1;
-            viewInfo.subresourceRange.baseArrayLayer = 0;
-            viewInfo.subresourceRange.layerCount = 1;
+        for (size_t frame = 0; frame < MAX_FRAMES_IN_FLIGHT; frame++) {
+            for (size_t face = 0; face < FACE_COUNT; face++)
+            {
+                VkImageViewCreateInfo viewInfo{};
+                viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+                viewInfo.image = binSwapChainImages[frame];
+                viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+                viewInfo.format = VK_FORMAT_R32_UINT;
+                viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                viewInfo.subresourceRange.baseMipLevel = 0;
+                viewInfo.subresourceRange.levelCount = 1;
+                viewInfo.subresourceRange.baseArrayLayer = face;
+                viewInfo.subresourceRange.layerCount = 1;
 
-            if(vkCreateImageView(device.device(),&viewInfo,nullptr,&binSwapChainImageViews[i])!=
-                VK_SUCCESS) {
-                throw std::runtime_error("failed to create texture image view!");
+                if(vkCreateImageView(device.device(),&viewInfo,nullptr,&binSwapChainImageViews[frame*FACE_COUNT+face])!=
+                    VK_SUCCESS) {
+                    throw std::runtime_error("failed to create texture image view!");
+                    }
+
+
+                VkDescriptorImageInfo imageInfo{};
+                imageInfo.sampler = binSampler;
+                imageInfo.imageView = binSwapChainImageViews[frame*FACE_COUNT+face];
+                imageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+                binBindDescriptorInfo[frame*FACE_COUNT+face]=imageInfo;
+
             }
 
-
-            VkDescriptorImageInfo imageInfo{};
-            imageInfo.sampler = binSampler;
-            imageInfo.imageView = binSwapChainImageViews[i];
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-            binBindDescriptorInfo.push_back(imageInfo);
-
-            //viewInfo.image = texIdSwapChainImages[i];
-            //if(vkCreateImageView(device.device(),&viewInfo,nullptr,&texIdSwapChainImageViews[i])!=
-            //    VK_SUCCESS) {
-            //    throw std::runtime_error("failed to create texture image view!");
-            //}
         }
     }
     void StSwapChain::createRenderPass() {
@@ -223,25 +227,29 @@ namespace st {
         }
     }
     void StSwapChain::createFramebuffers() {
-        swapChainFramebuffers.resize(imageCount());
-        for (size_t i = 0; i < imageCount(); i++) {
-            std::array<VkImageView, 2> attachments = {binSwapChainImageViews[i], depthImageViews[i]};
-            VkExtent2D swapChainExtent = getSwapChainExtent();
-            VkFramebufferCreateInfo framebufferInfo = {};
-            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = renderPass;
-            framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-            framebufferInfo.pAttachments = attachments.data();
-            framebufferInfo.width = swapChainExtent.width;
-            framebufferInfo.height = swapChainExtent.height;
-            framebufferInfo.layers = 1;
-            if (vkCreateFramebuffer(
-                device.device(),
-                &framebufferInfo,
-                nullptr,
-                &swapChainFramebuffers[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create framebuffer!");
+        swapChainFramebuffers.resize(MAX_FRAMES_IN_FLIGHT * FACE_COUNT);
+        for (size_t frame = 0; frame < imageCount(); frame++) {
+            for (size_t face = 0 ; face < FACE_COUNT; face++)
+            {
+                std::array<VkImageView, 2> attachments = {binSwapChainImageViews[frame*FACE_COUNT+face], depthImageViews[frame*FACE_COUNT+face]};
+                VkExtent2D swapChainExtent = getSwapChainExtent();
+                VkFramebufferCreateInfo framebufferInfo = {};
+                framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+                framebufferInfo.renderPass = renderPass;
+                framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+                framebufferInfo.pAttachments = attachments.data();
+                framebufferInfo.width = swapChainExtent.width;
+                framebufferInfo.height = swapChainExtent.height;
+                framebufferInfo.layers = 1;
+                if (vkCreateFramebuffer(
+                    device.device(),
+                    &framebufferInfo,
+                    nullptr,
+                    &swapChainFramebuffers[frame*FACE_COUNT+face]) != VK_SUCCESS) {
+                    throw std::runtime_error("failed to create framebuffer!");
+                    }
             }
+
         }
         
     }
@@ -249,18 +257,18 @@ namespace st {
         VkFormat depthFormat = findDepthFormat();
         swapChainDepthFormat = depthFormat;
         VkExtent2D swapChainExtent = getSwapChainExtent();
-        depthImages.resize(imageCount());
-        depthImageMemorys.resize(imageCount());
-        depthImageViews.resize(imageCount());
+        depthImages.resize(MAX_FRAMES_IN_FLIGHT);
+        depthImageMemorys.resize(MAX_FRAMES_IN_FLIGHT);
+        depthImageViews.resize(MAX_FRAMES_IN_FLIGHT*FACE_COUNT);
         for (int i = 0; i < depthImages.size(); i++) {
             VkImageCreateInfo imageInfo{};
             imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
             imageInfo.imageType = VK_IMAGE_TYPE_2D;
+            imageInfo.arrayLayers = FACE_COUNT;
             imageInfo.extent.width = swapChainExtent.width;
             imageInfo.extent.height = swapChainExtent.height;
             imageInfo.extent.depth = 1;
             imageInfo.mipLevels = 1;
-            imageInfo.arrayLayers = 1;
             imageInfo.format = depthFormat;
             imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
             imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -273,25 +281,29 @@ namespace st {
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 depthImages[i],
                 depthImageMemorys[i]);
-            VkImageViewCreateInfo viewInfo{};
-            viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            viewInfo.image = depthImages[i];
-            viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-            viewInfo.format = depthFormat;
-            viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-            viewInfo.subresourceRange.baseMipLevel = 0;
-            viewInfo.subresourceRange.levelCount = 1;
-            viewInfo.subresourceRange.baseArrayLayer = 0;
-            viewInfo.subresourceRange.layerCount = 1;
-            if (vkCreateImageView(device.device(), &viewInfo, nullptr, &depthImageViews[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create texture image view!");
+            for (size_t face = 0; face < FACE_COUNT; face++)
+            {
+                VkImageViewCreateInfo viewInfo{};
+                viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+                viewInfo.image = depthImages[i];
+                viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+                viewInfo.format = depthFormat;
+                viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+                viewInfo.subresourceRange.baseMipLevel = 0;
+                viewInfo.subresourceRange.levelCount = 1;
+                viewInfo.subresourceRange.baseArrayLayer = face;
+                viewInfo.subresourceRange.layerCount = 1;
+                if (vkCreateImageView(device.device(), &viewInfo, nullptr, &depthImageViews[i*FACE_COUNT+face]) != VK_SUCCESS) {
+                    throw std::runtime_error("failed to create texture image view!");
+                }
             }
+
         }
     }
     void StSwapChain::createSyncObjects() {
 
         inFlightFences.resize(imageCount());
-        imagesInFlight.resize(imageCount(), VK_NULL_HANDLE);
+
 
         VkFenceCreateInfo fenceInfo = {};
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;

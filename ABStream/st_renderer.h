@@ -38,7 +38,7 @@ namespace st {
 		}
 		VkCommandBuffer beginFrame();
 		void endFrame();
-		void beginSwapChainRenderpass(VkCommandBuffer commandBuffer);
+		void beginSwapChainRenderpass(VkCommandBuffer commandBuffer,int face);
 		void endSwapChainRenderpass(VkCommandBuffer commandBuffer);
 		VkDescriptorImageInfo* binDescriptorInfo(int index) {
 			return stSwapChain->binDescriptorInfo(index);
@@ -51,7 +51,7 @@ namespace st {
 				.baseMipLevel = 0,
 				.levelCount = 1,
 				.baseArrayLayer = 0,
-				.layerCount = 1
+				.layerCount = 6
 			};
 
 			VkImageMemoryBarrier barrier = {
@@ -86,7 +86,7 @@ namespace st {
 				.baseMipLevel = 0,
 				.levelCount = 1,
 				.baseArrayLayer = 0,
-				.layerCount = 1
+				.layerCount = 6
 			};
 
 			VkImageMemoryBarrier barrier = {

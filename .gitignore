@@ -373,3 +373,6 @@ vpk/
 
 # compiled shader
 *.spv
+
+# idea files
+.idea/
